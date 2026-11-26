@@ -39,7 +39,8 @@
       this.port = await navigator.serial.requestPort();
       await this.port.open({ baudRate: +baudRate || 115200 });
       this.writer = this.port.writable.getWriter();
-      this.readLoop();
+      this.closing = false;
+      this.loopDone = this.readLoop();
       this.on.log(`Порт открыт (${baudRate} бод, ${firmware === 'grbl' ? 'GRBL' : 'Marlin'})`, 'info');
       this.on.state('idle');
       if (firmware === 'grbl') {
@@ -52,19 +53,28 @@
     }
 
     async disconnect() {
+      if (this.closing) return;
+      this.closing = true;              // цикл чтения больше не захватывает порт заново
       clearInterval(this.pollTimer); this.pollTimer = null;
-      this.job = null;
-      try { if (this.reader) await this.reader.cancel(); } catch (e) { /* */ }
-      try { if (this.writer) { this.writer.releaseLock(); } } catch (e) { /* */ }
-      try { if (this.port) await this.port.close(); } catch (e) { /* */ }
+      if (this.job) { this.job.finished = true; this.job = null; }
+      this.paused = false;
+      const port = this.port, writer = this.writer, reader = this.reader;
+      // каждый шаг — не дольше 1,5 с: зависшее устройство не должно вешать программу
+      const limit = (p, ms = 1500) => Promise.race([Promise.resolve(p).catch(() => {}), new Promise(r => setTimeout(r, ms))]);
+      try { if (reader) await limit(reader.cancel()); } catch (e) { /* */ }
+      if (this.loopDone) await limit(this.loopDone);
+      try { if (writer) { await limit(writer.close()); writer.releaseLock(); } } catch (e) { /* */ }
+      try { if (port) await limit(port.close(), 2500); } catch (e) { /* */ }
       this.port = null; this.writer = null; this.reader = null;
+      this.rx = ''; this.manual = 0;
+      this.closing = false;
       this.on.state('disconnected');
       this.on.log('Порт закрыт', 'info');
     }
 
     async readLoop() {
       const dec = new TextDecoder();
-      while (this.port && this.port.readable) {
+      while (this.port && this.port.readable && !this.closing) {
         this.reader = this.port.readable.getReader();
         try {
           for (;;) {
@@ -79,15 +89,18 @@
             }
           }
         } catch (e) {
-          this.on.log('Ошибка чтения: ' + e.message, 'err');
+          if (!this.closing) this.on.log('Ошибка чтения: ' + e.message, 'err');
           break;
         } finally {
           try { this.reader.releaseLock(); } catch (e) { /* */ }
         }
-        if (!this.port) break;
       }
-      if (this.port) { // кабель отключили
-        this.port = null; clearInterval(this.pollTimer);
+      if (this.port && !this.closing) { // кабель выдернули или плоттер выключили
+        clearInterval(this.pollTimer); this.pollTimer = null;
+        if (this.job) { this.job.finished = true; this.job = null; }
+        try { this.writer && this.writer.releaseLock(); } catch (e) { /* */ }
+        try { await this.port.close(); } catch (e) { /* */ }
+        this.port = null; this.writer = null; this.reader = null;
         this.on.state('disconnected');
         this.on.log('Связь с плоттером потеряна', 'err');
       }
@@ -129,7 +142,7 @@
     }
 
     raw(str) {
-      if (!this.writer) return Promise.resolve();
+      if (!this.writer || this.closing) return Promise.resolve();
       return this.writer.write(this.enc.encode(str)).catch(e => this.on.log('Ошибка записи: ' + e.message, 'err'));
     }
 

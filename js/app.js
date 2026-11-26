@@ -715,7 +715,12 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
 
     $('connect').onclick = async () => {
       try {
-        if (sender.connected) await sender.disconnect();
+        if (sender.connected) {
+          if (sender.job && !sender.job.finished && !confirm('Идёт печать. Остановить её и отключиться?')) return;
+          if (sender.job && !sender.job.finished) await sender.stop(cfg.penUp.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean));
+          $('connect').disabled = true; $('connect').textContent = 'Отключаю…';
+          try { await sender.disconnect(); } finally { $('connect').disabled = false; }
+        }
         else { await sender.connect($('baud').value, $('fw').value); }
       } catch (e) {
         if (e.name !== 'NotFoundError') logLine('Не удалось подключиться: ' + e.message, 'err');
