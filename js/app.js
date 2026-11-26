@@ -752,12 +752,45 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
         }
         else {
           await sender.connect($('baud').value, $('fw').value);
+          rememberPort();
         }
       } catch (e) {
         if (e.name !== 'NotFoundError') logLine('Не удалось подключиться: ' + e.message, 'err');
         setState('disconnected');
       }
     };
+
+    // ----- автоподключение к последнему плоттеру -----
+    // Запоминаем USB-идентификаторы платы; при запуске и при подключении кабеля ищем её среди разрешённых портов.
+    const portKey = port => { const i = port.getInfo ? port.getInfo() : {}; return { vid: i.usbVendorId ?? null, pid: i.usbProductId ?? null }; };
+    function rememberPort() {
+      if (!sender.port) return;
+      localStorage.setItem('plotterLastPort', JSON.stringify(portKey(sender.port)));
+      $('autoConn').checked = true; localStorage.setItem('plotterAutoConn', '1');
+    }
+    let autoBusy = false;
+    async function autoConnect(reason) {
+      if (autoBusy || sender.connected || !$('autoConn').checked || !navigator.serial.getPorts) return;
+      let saved;
+      try { saved = JSON.parse(localStorage.getItem('plotterLastPort') || 'null'); } catch (e) { saved = null; }
+      if (!saved) return;
+      autoBusy = true;
+      try {
+        const ports = await navigator.serial.getPorts();
+        const port = ports.find(p => { const k = portKey(p); return k.vid === saved.vid && k.pid === saved.pid; });
+        if (!port) { if (reason === 'start') logLine('Последний плоттер не найден — подключите его кабелем, он подключится сам.', 'info'); return; }
+        logLine(reason === 'plug' ? 'Плоттер подключён к компьютеру — подключаюсь…' : 'Подключаюсь к последнему плоттеру…', 'info');
+        await sender.connect(cfg.baud || $('baud').value, cfg.fw || $('fw').value, port);
+      } catch (e) {
+        logLine('Автоподключение не удалось: ' + e.message + ' (порт может быть занят другой программой)', 'err');
+        setState('disconnected');
+      } finally { autoBusy = false; }
+    }
+    $('autoConn').checked = localStorage.getItem('plotterAutoConn') !== '0';
+    $('autoConn').onchange = () => localStorage.setItem('plotterAutoConn', $('autoConn').checked ? '1' : '0');
+    // плоттер подключили кабелем (или включили) — подключаемся
+    navigator.serial.addEventListener('connect', () => setTimeout(() => autoConnect('plug'), 800));
+    setTimeout(() => autoConnect('start'), 600);
     const startPrint = which => {
       const prog = PlotGcode.program(sheets, G(), which);
       live.active = true; live.page = which == null ? 0 : which; live.stroke = -1; live.pen = false;

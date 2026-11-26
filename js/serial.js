@@ -34,10 +34,12 @@
     static supported() { return typeof navigator !== 'undefined' && 'serial' in navigator; }
     get connected() { return !!this.port; }
 
-    async connect(baudRate, firmware) {
+    /** port — уже разрешённый порт (автоподключение); без него — окно выбора порта */
+    async connect(baudRate, firmware, port) {
       this.firmware = firmware;
-      this.port = await navigator.serial.requestPort();
-      await this.port.open({ baudRate: +baudRate || 115200 });
+      const p = port || await navigator.serial.requestPort();
+      await p.open({ baudRate: +baudRate || 115200 });
+      this.port = p;
       this.writer = this.port.writable.getWriter();
       this.closing = false;
       this.loopDone = this.readLoop();

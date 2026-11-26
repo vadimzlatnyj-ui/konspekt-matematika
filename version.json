@@ -1,13 +1,13 @@
 {
-  "version": "02991759e618",
-  "built": 1795724004649,
-  "date": "2026-11-26T20:13:24.649Z",
-  "notes": "Программа сама обновляется с GitHub",
+  "version": "4d95e7495f0c",
+  "built": 1795724360204,
+  "date": "2026-11-26T20:19:20.204Z",
+  "notes": "Автоподключение к последнему плоттеру",
   "files": [
     {
       "path": "index.html",
-      "size": 20065,
-      "sha256": "617e63211c0d00a508b5fab9dc38f7abd28db0c932e09970770ee12e5935c3c1"
+      "size": 20237,
+      "sha256": "6228e7681ec54922e27b1d92c7fbf00613103387716a31ac376ab25235622dd4"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 51081,
-      "sha256": "096116c2f94a2f3dce5d244c9b39662e00189e54024c84834fa8c5fbd5f06a65"
+      "size": 53548,
+      "sha256": "ac5e4e919869c631ad4a9c7710c5a2290945a6d835f63669acb725a32457381d"
     },
     {
       "path": "js/customfont.js",
@@ -51,8 +51,8 @@
     },
     {
       "path": "js/serial.js",
-      "size": 15149,
-      "sha256": "0f12a7f3d786fbbcf502bd71c787162f6207d0bf3c53b5b47f606ebcc96f2e82"
+      "size": 15320,
+      "sha256": "b25432f98936271123f4bd8c51601eb393c952dd7df7b54afbe6cf145540c83d"
     },
     {
       "path": "js/vendor/opentype.LICENSE",
