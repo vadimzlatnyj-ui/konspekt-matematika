@@ -7,7 +7,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-packager . PlotterKonspekt --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore=^/dist --ignore=^/scratch --app-version=1.0.0 --win32metadata.ProductName=\"Плоттер-конспект\" --win32metadata.FileDescription=\"Плоттер-конспект\"",
+    "manifest": "node tools/manifest.js",
+    "build:win": "node tools/manifest.js && electron-packager . PlotterKonspekt --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore=^/dist --ignore=^/scratch --ignore=^/tools --app-version=1.0.0 --win32metadata.ProductName=\"Плоттер-конспект\" --win32metadata.FileDescription=\"Плоттер-конспект\"",
     "build:linux": "electron-packager . PlotterKonspekt --platform=linux --arch=x64 --out=dist --overwrite --prune=true --ignore=^/dist",
     "build:mac": "electron-packager . PlotterKonspekt --platform=darwin --arch=x64,arm64 --out=dist --overwrite --prune=true --ignore=^/dist"
   },

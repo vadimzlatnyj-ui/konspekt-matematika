@@ -884,10 +884,41 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
   };
   $('fontSel').addEventListener('change', () => { $('fontDel').disabled = $('fontSel').value === 'builtin'; });
 
+  // ---------- самообновление (только в настольной программе) ----------
+  function initUpdates() {
+    if (!window.desktop) return;
+    const fmt = d => d ? new Date(d).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const showInfo = () => desktop.info().then(i => {
+      $('verInfo').innerHTML = `версия от ${fmt(i.date)} <button type="button" id="updCheck">Проверить обновления</button>`;
+      $('updCheck').onclick = async () => {
+        $('updCheck').textContent = 'Проверяю…';
+        const v = await desktop.checkNow();
+        $('updCheck').textContent = v ? 'Есть обновление ↑' : 'Обновлений нет ✓';
+        setTimeout(showInfo, 3000);
+      };
+    });
+    showInfo();
+    desktop.onUpdate(info => {
+      $('updText').textContent = `Загружена новая версия программы (${fmt(info.date)})${info.notes ? ': ' + info.notes : ''}.` +
+        ' Включится при следующем запуске или сейчас:';
+      $('updBar').hidden = false;
+    });
+    $('updLater').onclick = () => { $('updBar').hidden = true; };
+    $('updApply').onclick = async () => {
+      if (sender && sender.job && !sender.job.finished) {
+        alert('Сейчас идёт печать. Обновление включится после неё или при следующем запуске.');
+        return;
+      }
+      if (sender && sender.connected) await sender.disconnect();
+      desktop.applyUpdate();
+    };
+  }
+
   fillForm();
   $('text').value = localStorage.getItem('plotterText') ?? SAMPLE;
   bind();
   initSerial();
+  initUpdates();
   fontOptions();
   recompute();
   initFonts();

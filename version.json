@@ -1,0 +1,68 @@
+{
+  "version": "02991759e618",
+  "built": 1795724004649,
+  "date": "2026-11-26T20:13:24.649Z",
+  "notes": "Программа сама обновляется с GitHub",
+  "files": [
+    {
+      "path": "index.html",
+      "size": 20065,
+      "sha256": "617e63211c0d00a508b5fab9dc38f7abd28db0c932e09970770ee12e5935c3c1"
+    },
+    {
+      "path": "css/style.css",
+      "size": 5611,
+      "sha256": "5a42122699b6acaa4ea4f1aaaeba35e97f9765561366d16967bc6631762094ad"
+    },
+    {
+      "path": "js/app.js",
+      "size": 51081,
+      "sha256": "096116c2f94a2f3dce5d244c9b39662e00189e54024c84834fa8c5fbd5f06a65"
+    },
+    {
+      "path": "js/customfont.js",
+      "size": 10721,
+      "sha256": "45c4831a70f0fdccc7b9540c5cab83715a4865f4580dc2b4450ac6c050029fd5"
+    },
+    {
+      "path": "js/font.js",
+      "size": 16400,
+      "sha256": "03d477e36dfeb20f645124cef1c9b094c3d267ef0ec62bfa9b90fa6630515a57"
+    },
+    {
+      "path": "js/gcode.js",
+      "size": 9802,
+      "sha256": "f224dc98d7e295d145a66f2a2f1e626a0f9243f4aff0f9f907ec43dec3990c9a"
+    },
+    {
+      "path": "js/graph.js",
+      "size": 20707,
+      "sha256": "feda1f5254f40da20e052db32e53e1f6e24b22db61c6324d32fcbaf2c1e5a391"
+    },
+    {
+      "path": "js/layout.js",
+      "size": 13291,
+      "sha256": "de06efbd115f53c7846f2a3db7b2e929b35fe72db6d72a4598eba8e6a1a9146f"
+    },
+    {
+      "path": "js/math.js",
+      "size": 29502,
+      "sha256": "fc81496fa3a2c923b730cd7e65cc050844e36fee54b4e2510a9936dc5393d0ce"
+    },
+    {
+      "path": "js/serial.js",
+      "size": 15149,
+      "sha256": "0f12a7f3d786fbbcf502bd71c787162f6207d0bf3c53b5b47f606ebcc96f2e82"
+    },
+    {
+      "path": "js/vendor/opentype.LICENSE",
+      "size": 1085,
+      "sha256": "a5b87c9bc191e7f9c06b07bd7cbbed3ed846dfdb50e859484b2c245aa1ab2e61"
+    },
+    {
+      "path": "js/vendor/opentype.min.js",
+      "size": 170961,
+      "sha256": "e8abbd5ec06f23e8ce94a6b0caa82f51d12217da6d1d73301cf1e1391ec383df"
+    }
+  ]
+}

@@ -1,11 +1,36 @@
 /*
- * Настольная версия: то же приложение в отдельном окне + доступ к USB-порту плоттера.
+ * Настольная версия: то же приложение в отдельном окне + доступ к USB-порту плоттера
+ * + самообновление интерфейса с GitHub.
  */
-const { app, BrowserWindow, dialog, Menu } = require('electron');
+const { app, BrowserWindow, dialog, Menu, ipcMain } = require('electron');
 const path = require('path');
+const updater = require('./updater');
+
+let win = null;
+let currentDir = null;
+let pending = null; // скачанная, но ещё не включённая версия
+
+function load(dir) {
+  currentDir = dir;
+  win.loadFile(path.join(dir, 'index.html'));
+}
+
+async function checkUpdate() {
+  try {
+    const v = await updater.check(currentDir);
+    if (v) {
+      pending = v;
+      if (win && !win.isDestroyed()) win.webContents.send('update-ready', { version: v.version, date: v.date, notes: v.notes || '' });
+    }
+    return v;
+  } catch (e) {
+    console.warn('обновление не удалось:', e.message);
+    return null;
+  }
+}
 
 function createWindow() {
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 1500,
     height: 950,
     minWidth: 1000,
@@ -13,7 +38,7 @@ function createWindow() {
     title: 'Плоттер-конспект',
     autoHideMenuBar: true,
     backgroundColor: '#f3f4f6',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, spellcheck: false },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, spellcheck: false, preload: path.join(__dirname, 'preload.js') },
   });
   Menu.setApplicationMenu(null);
 
@@ -52,8 +77,23 @@ function createWindow() {
   ses.setPermissionCheckHandler(() => true);
   ses.setDevicePermissionHandler(details => details.deviceType === 'serial');
 
-  win.loadFile(path.join(__dirname, '..', 'index.html'));
+  load(updater.activeDir());
+  // проверка обновлений: через 5 с после запуска и потом каждые 30 минут
+  setTimeout(checkUpdate, 5000);
+  setInterval(checkUpdate, 30 * 60 * 1000);
 }
+
+ipcMain.handle('app-info', () => {
+  const v = updater.readVersion(currentDir) || {};
+  return { version: v.version || '', date: v.date || '', fromUpdate: currentDir !== updater.bundledDir, pending: pending ? pending.version : null };
+});
+ipcMain.handle('check-update', () => checkUpdate().then(v => (v ? v.version : null)));
+ipcMain.handle('apply-update', () => {
+  const dir = updater.activeDir();
+  pending = null;
+  load(dir);
+  return true;
+});
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());
