@@ -1,13 +1,13 @@
 {
-  "version": "4d95e7495f0c",
-  "built": 1795724360204,
-  "date": "2026-11-26T20:19:20.204Z",
-  "notes": "Автоподключение к последнему плоттеру",
+  "version": "5a3242fe4232",
+  "built": 1795724492266,
+  "date": "2026-11-26T20:21:32.266Z",
+  "notes": "Каждый Enter — новая строка; демонстрационный пример с формулами и графиками",
   "files": [
     {
       "path": "index.html",
-      "size": 20237,
-      "sha256": "6228e7681ec54922e27b1d92c7fbf00613103387716a31ac376ab25235622dd4"
+      "size": 20387,
+      "sha256": "a00b6c16305811ce939247913e413fa5f5fc9450cb1934475d1333560e96ffb3"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 53548,
-      "sha256": "ac5e4e919869c631ad4a9c7710c5a2290945a6d835f63669acb725a32457381d"
+      "size": 54671,
+      "sha256": "d5ca55d8f0c33a4fc7fe967d78003938a2e7fa408c5a74b0c3d7edf6050a57de"
     },
     {
       "path": "js/customfont.js",
@@ -41,8 +41,8 @@
     },
     {
       "path": "js/layout.js",
-      "size": 13291,
-      "sha256": "de06efbd115f53c7846f2a3db7b2e929b35fe72db6d72a4598eba8e6a1a9146f"
+      "size": 13548,
+      "sha256": "aca63eedb9ccd76bea43fbb89dee21ff61b9d4a6aa6f2cd86e65a9d919b1c1f6"
     },
     {
       "path": "js/math.js",

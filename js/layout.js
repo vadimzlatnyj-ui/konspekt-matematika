@@ -76,9 +76,10 @@
       letterSpacing: opt.letterSpacing, fracScale: opt.fracScale, scriptScale: opt.scriptScale, spaceWidth: opt.wordSpacing,
     };
     const content = () => { if (!cur) { cur = { kind: 'para', tokens: [] }; paras.push(cur); } nl = 0; };
+    // каждый Enter — новая строка: второй и следующие Enter подряд дают пустые строки
     const newline = () => {
       cur = null; nl++;
-      if (nl === 2) paras.push({ kind: 'blank' });
+      if (nl >= 2) paras.push({ kind: 'blank' });
     };
 
     for (const s of segs) {
@@ -108,7 +109,7 @@
       }
     }
     const out = paras.filter(p => !(p.kind === 'para' && !p.tokens.length));
-    while (out.length && out[0].kind === 'blank') out.shift();
+    // пустые строки в конце ничего не меняют; в начале — оставляем (это отступ сверху, который набрал пользователь)
     while (out.length && out[out.length - 1].kind === 'blank') out.pop();
     return out;
   }
@@ -212,12 +213,8 @@
     for (const p of paras) {
       if (p.kind === 'pagebreak') { if (page && page.strokes.length) newPage(); else if (!page) newPage(); continue; }
       if (p.kind === 'blank') {
-        if (!page) newPage();
-        if (lineOnPage > 0) {
-          const y = snap(baseline + opt.linePitch);
-          if (y > opt.pageH - opt.marginBottom) newPage();
-          else { baseline = y; prevDesc = 0; }
-        }
+        // пустая строка занимает строку тетради, как обычная (в том числе в начале страницы)
+        placeLine(opt.capHeight, 0);
         continue;
       }
       if (p.kind === 'graph') {

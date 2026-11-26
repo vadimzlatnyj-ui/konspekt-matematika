@@ -63,23 +63,34 @@
     spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMath: false,
   };
 
-  const SAMPLE = String.raw`Задача 1. Решите уравнение $x^2 - 5x + 6 = 0$.
-Решение: найдём дискриминант
+  const SAMPLE = String.raw`Демонстрация: формулы и графики
+
+1. Квадратное уравнение. Решите $x^2 - 5x + 6 = 0$.
 $$D = b^2 - 4ac = 25 - 24 = 1$$
-$$x_{1,2} = \frac{5 \pm \sqrt{1}}{2}$$
+$$x_{1,2} = \frac{-b \pm \sqrt{D}}{2a} = \frac{5 \pm 1}{2}$$
 Ответ: $x_1 = 2$, $x_2 = 3$.
 
-Задача 2. Вычислите $\lim_{x \to 0} \frac{\sin x}{x}$ и интеграл:
-$$\int_0^1 x^2\,dx = \frac{x^3}{3}\Big|_0^1 = \frac{1}{3}$$
+2. Дроби, корни и степени
+$$\frac{a^2 - b^2}{a + b} = a - b, \quad \sqrt[3]{27} = 3, \quad 2^{-3} = \frac{1}{8}$$
 
-Задача 3. Решите систему:
-$$\begin{cases} x + y = 5 \\ x - y = 1 \end{cases} \Rightarrow x = 3,\ y = 2$$
-Теорема Пифагора: a² + b² = c², площадь круга S = πr².
-$$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}$$
-Задача 4. Постройте график функции $y = x^2 - 2x - 3$.
-Вершина параболы: $x_0 = 1$, $y_0 = -4$, нули: $x = -1$ и $x = 3$.
-[график: y = x^2 - 2x - 3; x от -3 до 5; точки (1; -4) (-1; 0) (3; 0)]
-Ответ: $\log_2 8 = 3$.`;
+3. Система уравнений и определитель
+$$\begin{cases} 2x + y = 7 \\ x - y = -1 \end{cases} \Rightarrow \begin{cases} x = 2 \\ y = 3 \end{cases}$$
+$$\begin{vmatrix} 1 & 2 \\ 3 & 4 \end{vmatrix} = 1 \cdot 4 - 2 \cdot 3 = -2$$
+
+4. Тригонометрия и логарифмы
+$$\sin^2\alpha + \cos^2\alpha = 1, \quad \log_2 32 = 5, \quad \lg 1000 = 3$$
+
+5. Пределы, производные, интегралы
+$$\lim_{x \to 0} \frac{\sin x}{x} = 1, \quad (x^3)' = 3x^2, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}$$
+$$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
+
+6. Графики
+Парабола $y = x^2 - 2x - 3$: вершина $(1; -4)$, нули $x = -1$ и $x = 3$.
+[график: y = x^2 - 2x - 3; x от -2 до 4; y от -5 до 5; размер 12x10; точки (1; -4) (-1; 0) (3; 0)]
+Синус и косинус:
+[график: y = sin x; y = cos x; x от -2pi до 2pi; y от -1.5 до 1.5; размер 26x6; подписать]
+Гипербола $y = \frac{1}{x - 1} + 1$ и её асимптоты $x = 1$, $y = 1$:
+[график: y = 1/(x-1) + 1; x от -3 до 5; y от -3 до 5; размер 10x10; асимптоты x = 1, y = 1]`;
 
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
@@ -536,6 +547,11 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       el.addEventListener('change', schedule);
     });
     $('text').addEventListener('input', schedule);
+    $('demoBtn').onclick = () => {
+      const cur = $('text').value.trim();
+      if (cur && cur !== SAMPLE.trim() && !confirm('Заменить текущий текст демонстрационным примером?')) return;
+      $('text').value = SAMPLE; schedule();
+    };
     $('preset').addEventListener('change', () => {
       const p = PAGE_PRESETS[$('preset').value];
       if (p) { $('pageW').value = p[0]; $('pageH').value = p[1]; }
@@ -948,7 +964,9 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
   }
 
   fillForm();
-  $('text').value = localStorage.getItem('plotterText') ?? SAMPLE;
+  // при первом открытии (или если поле пустое) — демонстрационный текст
+  const savedText = localStorage.getItem('plotterText');
+  $('text').value = savedText && savedText.trim() ? savedText : SAMPLE;
   bind();
   initSerial();
   initUpdates();
