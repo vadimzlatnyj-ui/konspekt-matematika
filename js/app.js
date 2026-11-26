@@ -39,7 +39,11 @@ $$\int_0^1 x^2\,dx = \frac{x^3}{3}\Big|_0^1 = \frac{1}{3}$$
 Задача 3. Решите систему:
 $$\begin{cases} x + y = 5 \\ x - y = 1 \end{cases} \Rightarrow x = 3,\ y = 2$$
 Теорема Пифагора: a² + b² = c², площадь круга S = πr².
-$$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}$$`;
+$$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}$$
+Задача 4. Постройте график функции $y = x^2 - 2x - 3$.
+Вершина параболы: $x_0 = 1$, $y_0 = -4$, нули: $x = -1$ и $x = 3$.
+[график: y = x^2 - 2x - 3; x от -3 до 5; точки (1; -4) (-1; 0) (3; 0)]
+Ответ: $\log_2 8 = 3$.`;
 
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',

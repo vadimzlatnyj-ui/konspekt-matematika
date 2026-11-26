@@ -90,6 +90,8 @@
             cur = null; nl = 1; paras.push({ kind: 'pagebreak' }); return;
           }
           if (!trimmed) return;
+          const gm = /^\[\s*(график|graph|plot)\s*[:：]?\s*(.*)\]$/i.exec(trimmed);
+          if (gm) { paras.push({ kind: 'graph', spec: gm[2] }); cur = null; nl = 0; return; }
           for (const part of line.split(/(\s+)/)) {
             if (!part) continue;
             if (/^\s+$/.test(part)) { if (cur) cur.tokens.push({ t: 'space' }); continue; }
@@ -205,6 +207,33 @@
           if (y > opt.pageH - opt.marginBottom) newPage();
           else { baseline = y; prevDesc = 0; }
         }
+        continue;
+      }
+      if (p.kind === 'graph') {
+        if (!page) newPage();
+        const avail = textW();
+        const mopt = { letterSpacing: opt.letterSpacing, fracScale: opt.fracScale, scriptScale: opt.scriptScale, spaceWidth: opt.wordSpacing };
+        const env = {
+          availW: avail, cell: opt.cell || 5, capHeight: opt.capHeight,
+          maxH: opt.pageH - opt.marginTop - opt.marginBottom - opt.capHeight * 2,
+          textBox: (str, k) => M.scaleBox(M.layoutTextWord(str, mopt), s * k),
+          mathBox: (src, k) => M.scaleBox(M.layoutMath(src, mopt), s * k),
+        };
+        let r;
+        try { r = root.PlotGraph.build(p.spec, env); }
+        catch (e) { warnings.push('график: ' + e.message); continue; }
+        warnings.push(...r.warnings);
+        const g = r.box;
+        const y = placeLine(g.asc + 1, g.desc);
+        let x = page.margins.left + (g.align === 'left' ? 0 : Math.max(0, (avail - g.w) / 2));
+        if (opt.cell) {
+          // ставим поле графика на линию клеток
+          const c = opt.cell;
+          let nx = Math.round((x + g.plotLeft) / c) * c - g.plotLeft;
+          if (nx < page.margins.left) nx += c;
+          if (nx + g.w <= opt.pageW - page.margins.right + 0.01 || nx <= x) x = nx;
+        }
+        for (const st of g.strokes) page.strokes.push(st.map(([px, py]) => [x + px, y - py]));
         continue;
       }
       if (p.kind === 'display') {
