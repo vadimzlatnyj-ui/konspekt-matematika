@@ -22,9 +22,9 @@
     penPreset: 'servo', penUp: PEN_PRESETS.servo.penUp, penDown: PEN_PRESETS.servo.penDown,
     feedDraw: 1500, feedTravel: 4000, penDelay: 0.2, travelG0: true,
     header: 'G21 ; миллиметры\nG90 ; абсолютные координаты',
-    betweenPages: 'G0 X0 Y0\nM0 ; Страница {page} готова. Переверните лист и продолжите',
-    footer: 'G0 X0 Y0\nM2',
-    decimals: 2, joinDistance: 0.1, optimize: true,
+    betweenPages: 'G0 X{startX} Y{startY}\nM0 ; Страница {page} готова. Переверните лист и продолжите',
+    footer: 'G0 X{startX} Y{startY}\nM2',
+    decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
   };
 
   const SAMPLE = String.raw`Задача 1. Решите уравнение $x^2 - 5x + 6 = 0$.
@@ -47,9 +47,9 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
 
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
-    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance'];
-  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'optimize'];
-  const STR = ['preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow'];
+  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0'];
+  const STR = ['order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };
@@ -103,20 +103,133 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
 
   function currentGcode() { return PlotGcode.program(result.pages, cfg, pageIdx); }
 
+  // ---------- путь ручки (для предпросмотра и симуляции) ----------
+  let path = null;          // { segs:[{draw, pts, t0, t1}], total, start }
+  const sim = { running: false, t: Infinity, last: 0 };
+
+  /** Строит путь ручки: старт → холостой ход → штрих → … в координатах листа или станка */
+  function buildPath(strokes, start) {
+    const segs = [];
+    let t = 0, cur = start;
+    const vd = Math.max(1, cfg.feedDraw) / 60, vt = Math.max(1, cfg.feedTravel) / 60; // мм/с
+    const len = pts => { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; };
+    for (const s of strokes) {
+      if (!s.length) continue;
+      const tr = [cur, s[0]];
+      const dt = len(tr) / vt + (cfg.penDelay || 0) * 2;
+      segs.push({ draw: false, pts: tr, t0: t, t1: t + dt }); t += dt;
+      const dd = len(s) / vd;
+      segs.push({ draw: true, pts: s, t0: t, t1: t + dd }); t += dd;
+      cur = s[s.length - 1];
+    }
+    return { segs, total: t, start };
+  }
+
+  /** Часть ломаной до доли f (0..1) по длине */
+  function partial(pts, f) {
+    if (f >= 1) return pts;
+    let L = 0; const acc = [0];
+    for (let i = 1; i < pts.length; i++) { L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); acc.push(L); }
+    const target = L * f, out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      if (acc[i] <= target) { out.push(pts[i]); continue; }
+      const seg = acc[i] - acc[i - 1], u = seg ? (target - acc[i - 1]) / seg : 0;
+      out.push([pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * u, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * u]);
+      break;
+    }
+    return out;
+  }
+
+  function fmtT(m) { return m < 1 ? `${Math.round(m * 60)} с` : `${Math.floor(m)} мин ${Math.round((m % 1) * 60)} с`; }
+
   function render() {
+    stopSim();
     const n = result.pages.length;
     const page = result.pages[pageIdx];
     $('pageInfo').textContent = `Страница ${pageIdx + 1 + (cfg.firstPage - 1)} (${pageIdx + 1} из ${n})`;
     const g = currentGcode();
     const all = PlotGcode.program(result.pages, cfg, null);
     const st = g.stats;
-    const fmtT = m => m < 1 ? `${Math.round(m * 60)} с` : `${Math.floor(m)} мин ${Math.round((m % 1) * 60)} с`;
     $('stats').innerHTML =
       `Эта страница: письмо ${(st.draw / 1000).toFixed(2)} м, холостые ${(st.travel / 1000).toFixed(2)} м, ` +
       `опусканий ручки ${st.lifts}, ≈ ${fmtT(st.time)}, строк G-code ${g.text.split('\n').length - 1}.<br>` +
       `Все ${n} стр.: ≈ ${fmtT(all.stats.time)}.`;
     $('gcodeOut').value = g.text.length > 400000 ? g.text.slice(0, 400000) + '\n; … (обрезано в окне, файл полный)' : g.text;
+    if ($('view').value === 'bed') {
+      const pg = PlotGcode.pageGcode(page, cfg, pageIdx + 1, n);
+      path = buildPath(pg.machineStrokes, [+cfg.startX || 0, +cfg.startY || 0]);
+    } else {
+      path = buildPath(PlotGcode.orderPage(page, cfg), PlotGcode.startOnPage(cfg));
+    }
+    sim.t = Infinity;
+    $('simPos').value = 1000;
+    draw();
+  }
+
+  function draw() {
+    const page = result.pages[pageIdx];
     if ($('view').value === 'bed') drawBed(page); else drawPage(page);
+    const t = Math.min(sim.t, path.total);
+    $('simInfo').textContent = sim.t === Infinity ? `весь путь: ${fmtT(path.total / 60)}` : `${fmtT(t / 60)} из ${fmtT(path.total / 60)}`;
+  }
+
+  /** Рисует путь ручки до момента sim.t, маркеры старта и положения ручки */
+  function drawPath(ctx, k, opts) {
+    const upto = sim.t;
+    const simMode = upto !== Infinity;
+    const showTravel = $('showTravel').checked || simMode;
+    // холостые ходы
+    if (showTravel) {
+      ctx.save();
+      ctx.setLineDash([1.5, 1.2].map(v => v * (opts.dashK || 1)));
+      ctx.strokeStyle = 'rgba(239,68,68,.55)'; ctx.lineWidth = 0.5 / k * (opts.lw || 1);
+      ctx.beginPath();
+      for (const sg of path.segs) {
+        if (sg.draw || sg.t0 > upto) continue;
+        const pts = partial(sg.pts, (upto - sg.t0) / (sg.t1 - sg.t0));
+        ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+      }
+      ctx.stroke(); ctx.restore();
+    }
+    // штрихи
+    ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = Math.max(0.3, 1.2 / k); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    let pen = path.start, down = false;
+    for (const sg of path.segs) {
+      if (sg.t0 > upto) break;
+      const f = (upto - sg.t0) / (sg.t1 - sg.t0);
+      const pts = partial(sg.pts, f);
+      if (sg.draw) { ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); }
+      pen = pts[pts.length - 1]; down = sg.draw && f < 1;
+    }
+    ctx.stroke();
+
+    const R = Math.max(1.2, 6 / k);
+    const label = (txt, x, y, color) => opts.text(txt, x, y, color);
+    // старт ручки
+    const [sx, sy] = opts.clamp(path.start);
+    ctx.fillStyle = 'rgba(22,163,74,.25)'; ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1.5 / k;
+    ctx.beginPath(); ctx.arc(sx, sy, R, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    const outside = sx !== path.start[0] || sy !== path.start[1];
+    label(outside ? 'старт (за листом)' : 'старт', sx, sy, '#15803d');
+    // начало письма
+    const firstDraw = path.segs.find(sg => sg.draw);
+    if (firstDraw && !simMode) {
+      const [fx, fy] = firstDraw.pts[0];
+      ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1 / k; ctx.setLineDash([2 / k * 3, 1.5 / k * 3]);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(fx, fy); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#16a34a';
+      ctx.beginPath(); ctx.arc(fx, fy, R * 0.6, 0, 2 * Math.PI); ctx.fill();
+      label('1-й штрих', fx, fy, '#15803d');
+    }
+    // текущее положение ручки при симуляции
+    if (simMode) {
+      ctx.lineWidth = 2 / k;
+      ctx.strokeStyle = down ? '#2563eb' : '#dc2626';
+      ctx.fillStyle = down ? 'rgba(37,99,235,.35)' : 'rgba(220,38,38,.15)';
+      ctx.beginPath(); ctx.arc(pen[0], pen[1], R * (down ? 0.8 : 1.3), 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+      label(down ? 'пишет' : 'поднята', pen[0], pen[1], down ? '#1d4ed8' : '#b91c1c');
+    }
   }
 
   // ---------- холст ----------
@@ -141,7 +254,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
     // клетки
     if (cfg.cell > 0) {
-      ctx.strokeStyle = '#c7dcf0'; ctx.lineWidth = 0.6 / k * 1;
+      ctx.strokeStyle = '#c7dcf0'; ctx.lineWidth = 0.6 / k;
       ctx.beginPath();
       for (let x = cfg.cell; x < W; x += cfg.cell) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
       const y0 = cfg.marginTop % cfg.cell;
@@ -149,78 +262,95 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       ctx.stroke();
     }
     const m = page.margins;
-    // поле (красная линия) — со стороны большего поля
     ctx.strokeStyle = '#e05252'; ctx.lineWidth = 1 / k;
     ctx.beginPath();
     if (m.right >= m.left) { ctx.moveTo(W - m.right, 0); ctx.lineTo(W - m.right, H); }
     else { ctx.moveTo(m.left, 0); ctx.lineTo(m.left, H); }
     ctx.stroke();
-    // область текста
     ctx.setLineDash([2, 2]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 0.6 / k;
     ctx.strokeRect(m.left, cfg.marginTop, W - m.left - m.right, H - cfg.marginTop - cfg.marginBottom);
     ctx.setLineDash([]);
-    // штрихи
-    let strokes = page.strokes;
-    if ($('showTravel').checked) {
-      if (cfg.optimize) strokes = PlotGcode.optimizeOrder(strokes, [0, H]);
-      ctx.strokeStyle = 'rgba(239,68,68,.45)'; ctx.lineWidth = 0.6 / k;
-      ctx.beginPath();
-      let prev = null;
-      for (const s of strokes) { if (prev) { ctx.moveTo(prev[0], prev[1]); ctx.lineTo(s[0][0], s[0][1]); } prev = s[s.length - 1]; }
-      ctx.stroke();
+    // строки, по которым пишет ручка
+    if ($('showLines').checked && page.baselines) {
+      ctx.strokeStyle = 'rgba(22,163,74,.55)'; ctx.lineWidth = 1.2 / k;
+      ctx.fillStyle = '#15803d'; ctx.font = `${Math.max(2.2, 10 / k)}px sans-serif`;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      page.baselines.forEach((b, i) => {
+        ctx.beginPath(); ctx.moveTo(m.left, b.y); ctx.lineTo(W - m.right, b.y); ctx.stroke();
+        ctx.fillText(String(i + 1), m.left - 0.8, b.y - 1);
+      });
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
-    ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = Math.max(0.35, 1.2 / k); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath();
-    for (const s of strokes) {
-      ctx.moveTo(s[0][0], s[0][1]);
-      for (let i = 1; i < s.length; i++) ctx.lineTo(s[i][0], s[i][1]);
-    }
-    ctx.stroke();
+    drawPath(ctx, k, {
+      clamp: ([x, y]) => [Math.min(W - 2, Math.max(2, x)), Math.min(H - 2, Math.max(2, y))],
+      text: (t, x, y, color) => {
+        ctx.fillStyle = color; ctx.font = `bold ${Math.max(2.5, 11 / k)}px sans-serif`;
+        const w = ctx.measureText(t).width;
+        ctx.fillText(t, Math.min(x + 2, W - w - 1), Math.max(y - 2, 4));
+      },
+    });
   }
 
   function drawBed(page) {
     const BW = cfg.bedW, BH = cfg.bedH;
     const { ctx, k } = setupCanvas(BW, BH);
-    // станок: Y вверх
-    ctx.transform(1, 0, 0, -1, 0, BH);
+    ctx.transform(1, 0, 0, -1, 0, BH); // станок: Y вверх
     ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, BW, BH);
     ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5 / k;
     ctx.beginPath();
     for (let x = 0; x <= BW; x += 10) { ctx.moveTo(x, 0); ctx.lineTo(x, BH); }
     for (let y = 0; y <= BH; y += 10) { ctx.moveTo(0, y); ctx.lineTo(BW, y); }
     ctx.stroke();
-    // начало координат
-    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 2 / k;
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2 / k;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 0); ctx.moveTo(0, 0); ctx.lineTo(0, 20); ctx.stroke();
-    // лист
     const tf = PlotGcode.makeTransform(cfg);
     const corners = [[0, 0], [cfg.pageW, 0], [cfg.pageW, cfg.pageH], [0, cfg.pageH]].map(tf);
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1 / k;
     ctx.beginPath(); corners.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
     ctx.fill(); ctx.stroke();
-    // верхний край листа — выделим
     ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 3 / k;
     ctx.beginPath(); ctx.moveTo(corners[0][0], corners[0][1]); ctx.lineTo(corners[1][0], corners[1][1]); ctx.stroke();
-    const g = PlotGcode.pageGcode(page, cfg, pageIdx + 1, result.pages.length);
-    const strokes = g.machineStrokes;
-    if ($('showTravel').checked) {
-      ctx.strokeStyle = 'rgba(239,68,68,.45)'; ctx.lineWidth = 0.6 / k;
+    if ($('showLines').checked && page.baselines) {
+      ctx.strokeStyle = 'rgba(22,163,74,.55)'; ctx.lineWidth = 1 / k;
       ctx.beginPath();
-      let prev = [+cfg.offsetX, +cfg.offsetY];
-      for (const s of strokes) { ctx.moveTo(prev[0], prev[1]); ctx.lineTo(s[0][0], s[0][1]); prev = s[s.length - 1]; }
+      for (const b of page.baselines) {
+        const a = tf([page.margins.left, b.y]), c = tf([cfg.pageW - page.margins.right, b.y]);
+        ctx.moveTo(a[0], a[1]); ctx.lineTo(c[0], c[1]);
+      }
       ctx.stroke();
     }
-    ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = Math.max(0.3, 1 / k); ctx.lineCap = 'round';
-    ctx.beginPath();
-    for (const s of strokes) { ctx.moveTo(s[0][0], s[0][1]); for (let i = 1; i < s.length; i++) ctx.lineTo(s[i][0], s[i][1]); }
-    ctx.stroke();
-    // подписи
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const dpr = window.devicePixelRatio || 1;
-    ctx.fillStyle = '#16a34a'; ctx.font = `${12 * dpr}px sans-serif`;
-    ctx.fillText('0,0', 4 * dpr, $('canvas').height - 6 * dpr);
-    ctx.fillStyle = '#b45309';
-    ctx.fillText('оранжевая линия — верх листа', 6 * dpr, 16 * dpr);
+    const text = (t, x, y, color) => { // текст без отражения
+      ctx.save(); ctx.translate(x, y); ctx.scale(1, -1);
+      ctx.fillStyle = color; ctx.font = `bold ${Math.max(3, 11 / k)}px sans-serif`;
+      ctx.fillText(t, 2, -2); ctx.restore();
+    };
+    drawPath(ctx, k, { clamp: p => p, text, lw: 1 });
+    text('0,0', 24, -1, '#475569');
+    text('оранжевая линия — верх листа', 4, BH - 8, '#b45309');
+  }
+
+  // ---------- симуляция ----------
+  function stopSim() {
+    sim.running = false;
+    $('simPlay').textContent = '▶ Симуляция';
+  }
+  function step(ts) {
+    if (!sim.running) return;
+    const dt = sim.last ? (ts - sim.last) / 1000 : 0;
+    sim.last = ts;
+    sim.t += dt * (+$('simSpeed').value || 1);
+    if (sim.t >= path.total) { sim.t = path.total; stopSim(); }
+    $('simPos').value = Math.round(sim.t / Math.max(path.total, 1e-9) * 1000);
+    draw();
+    if (sim.running) requestAnimationFrame(step);
+  }
+  function toggleSim() {
+    if (sim.running) { stopSim(); return; }
+    if (!path || !path.total) return;
+    if (sim.t === Infinity || sim.t >= path.total) sim.t = 0;
+    sim.running = true; sim.last = 0;
+    $('simPlay').textContent = '⏸ Пауза';
+    requestAnimationFrame(step);
   }
 
   // ---------- скачивание ----------
@@ -255,9 +385,12 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     ['penUp', 'penDown'].forEach(id => $(id).addEventListener('input', () => { $('penPreset').value = 'custom'; }));
     $('prev').onclick = () => { if (pageIdx > 0) { pageIdx--; render(); } };
     $('next').onclick = () => { if (pageIdx < result.pages.length - 1) { pageIdx++; render(); } };
-    $('showTravel').onchange = render;
+    $('showTravel').onchange = () => draw();
+    $('showLines').onchange = () => draw();
+    $('simPlay').onclick = toggleSim;
+    $('simPos').oninput = () => { stopSim(); sim.t = $('simPos').value >= 1000 ? Infinity : $('simPos').value / 1000 * path.total; draw(); };
     $('view').onchange = render;
-    window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(render, 150); });
+    window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(draw, 150); });
 
     $('dlPage').onclick = () => download(pageName(pageIdx), currentGcode().text);
     $('dlAll').onclick = () => download('vse_stranicy.gcode', PlotGcode.program(result.pages, cfg, null).text);

@@ -68,7 +68,56 @@
       return [X + (+cfg.offsetX || 0), Y + (+cfg.offsetY || 0)];
     };
     fn.bboxW = bw; fn.bboxH = bh;
+    // обратное преобразование: станок → лист
+    const unrot = (a, b) => {
+      switch (r) {
+        case 90: return [b, -a];
+        case 180: return [-a, -b];
+        case 270: return [-b, a];
+        default: return [a, b];
+      }
+    };
+    fn.inverse = ([X, Y]) => {
+      X -= (+cfg.offsetX || 0); Y -= (+cfg.offsetY || 0);
+      if (cfg.mirrorX) X = bw - X;
+      if (cfg.mirrorY) Y = bh - Y;
+      const [u, v] = unrot(X + minX, Y + minY);
+      return [u, H - v];
+    };
     return fn;
+  }
+
+  /** Точка старта ручки в координатах листа */
+  function startOnPage(cfg) {
+    return makeTransform(cfg).inverse([+cfg.startX || 0, +cfg.startY || 0]);
+  }
+
+  /**
+   * Порядок письма на странице (координаты листа).
+   * cfg.order: 'lines' — строка за строкой сверху вниз, слева направо (как пишет человек);
+   *            'shortest' — кратчайший путь по всей странице; 'asis' — как сверстано.
+   */
+  function orderPage(page, cfg) {
+    const start = startOnPage(cfg);
+    const strokes = page.strokes.filter(s => s.length >= 1);
+    const order = cfg.order || 'lines';
+    if (order === 'shortest') return optimizeOrder(strokes, start);
+    if (order === 'asis') return strokes.slice();
+    // по строкам: строки по возрастанию номера, внутри — по порядку письма слева направо;
+    // штрих переворачиваем, если его конец ближе к ручке
+    const lineOf = page.lineOf || [];
+    const idx = strokes.map((s, i) => i);
+    idx.sort((a, b) => (lineOf[a] || 0) - (lineOf[b] || 0) || a - b);
+    const res = [];
+    let cur = start;
+    for (const i of idx) {
+      let st = page.strokes[i];
+      const a = st[0], b = st[st.length - 1];
+      if ((b[0] - cur[0]) ** 2 + (b[1] - cur[1]) ** 2 < (a[0] - cur[0]) ** 2 + (a[1] - cur[1]) ** 2 - 1e-9) st = st.slice().reverse();
+      res.push(st);
+      cur = st[st.length - 1];
+    }
+    return res;
   }
 
   function lines(txt) {
@@ -85,13 +134,12 @@
     const f = v => (+v.toFixed(d)).toString();
     const minSeg = cfg.minSegment || 0.05;
 
-    let strokes = page.strokes.map(s => simplify(s.map(tf), minSeg)).filter(s => s.length >= 2);
-    if (cfg.optimize) strokes = optimizeOrder(strokes, [+cfg.offsetX || 0, +cfg.offsetY || 0]);
+    const strokes = orderPage(page, cfg).map(s => simplify(s.map(tf), minSeg)).filter(s => s.length >= 2);
 
     const out = [];
     const sub = t => t.replace(/\{page\}/g, pageNo).replace(/\{pages\}/g, totalPages);
     out.push(`; --- Страница ${pageNo} из ${totalPages} ---`);
-    let pos = null, down = false;
+    let pos = [+cfg.startX || 0, +cfg.startY || 0], down = false; // ручка стартует из точки старта
     let draw = 0, travel = 0, lifts = 0;
     const travelCmd = cfg.travelG0 ? 'G0' : 'G1';
     const penUp = lines(sub(cfg.penUp)), penDown = lines(sub(cfg.penDown));
@@ -131,9 +179,10 @@
     const total = pages.length;
     const list = which == null ? pages.map((p, i) => i) : [which];
     const out = [];
-    const hdr = t => lines(t.replace(/\{pages\}/g, total).replace(/\{page\}/g, list.length === 1 ? list[0] + 1 : 1));
+    const hdr = t => lines(t.replace(/\{startX\}/g, +cfg.startX || 0).replace(/\{startY\}/g, +cfg.startY || 0).replace(/\{pages\}/g, total).replace(/\{page\}/g, list.length === 1 ? list[0] + 1 : 1));
     out.push('; Сгенерировано: Плоттер-конспект (формулы в G-code)');
     out.push(`; Лист ${cfg.pageW}x${cfg.pageH} мм, смещение X${cfg.offsetX} Y${cfg.offsetY}, поворот ${cfg.rotation}°`);
+    out.push(`; Ручка должна стоять в точке старта X${+cfg.startX || 0} Y${+cfg.startY || 0} (поднята)`);
     out.push(...hdr(cfg.header));
     const stats = { draw: 0, travel: 0, lifts: 0, time: 0, strokes: 0 };
     list.forEach((idx, k) => {
@@ -141,12 +190,12 @@
       out.push(...r.code);
       for (const key in stats) stats[key] += r.stats[key];
       if (k < list.length - 1) {
-        out.push(...lines((cfg.betweenPages || '').replace(/\{page\}/g, idx + 1).replace(/\{next\}/g, idx + 2).replace(/\{pages\}/g, total)));
+        out.push(...lines((cfg.betweenPages || '').replace(/\{startX\}/g, +cfg.startX || 0).replace(/\{startY\}/g, +cfg.startY || 0).replace(/\{page\}/g, idx + 1).replace(/\{next\}/g, idx + 2).replace(/\{pages\}/g, total)));
       }
     });
     out.push(...hdr(cfg.footer));
     return { text: out.join('\n') + '\n', stats };
   }
 
-  root.PlotGcode = { pageGcode, program, makeTransform, simplify, optimizeOrder };
+  root.PlotGcode = { pageGcode, program, makeTransform, simplify, optimizeOrder, orderPage, startOnPage };
 })(typeof window !== 'undefined' ? window : globalThis);

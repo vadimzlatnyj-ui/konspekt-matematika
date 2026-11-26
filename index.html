@@ -40,7 +40,11 @@
       </div>
       <label class="chk"><input type="checkbox" id="mirrorMargins"> Зеркальные поля на чётных страницах</label>
       <label class="chk"><input type="checkbox" id="snapToGrid"> Строки по линиям клеток</label>
-      <label>Номер первой страницы <input type="number" id="firstPage" step="1" min="1"></label>
+      <div class="row">
+        <label>Номер первой страницы <input type="number" id="firstPage" step="1" min="1"></label>
+        <label>Начать с клетки № (сверху) <input type="number" id="startRow" step="1" min="1"></label>
+      </div>
+      <p class="hint">«Начать с клетки» — если страница уже частично исписана: первая строка опустится на нужную клетку.</p>
     </details>
 
     <details open>
@@ -60,6 +64,11 @@
       </label>
       <label class="chk"><input type="checkbox" id="mirrorX"> Отразить по X</label>
       <label class="chk"><input type="checkbox" id="mirrorY"> Отразить по Y (ось Y станка направлена к себе)</label>
+      <div class="row">
+        <label>Старт ручки X <input type="number" id="startX" step="0.5"></label>
+        <label>Старт ручки Y <input type="number" id="startY" step="0.5"></label>
+      </div>
+      <p class="hint">Где стоит (поднятая) ручка перед запуском — обычно 0,0 после «Домой». Показана зелёным кружком.</p>
       <div class="row">
         <label>Стол X, мм <input type="number" id="bedW" step="1"></label>
         <label>Стол Y, мм <input type="number" id="bedH" step="1"></label>
@@ -117,7 +126,13 @@
         <label>Знаков после запятой <input type="number" id="decimals" min="0" max="5"></label>
         <label>Склейка штрихов, мм <input type="number" id="joinDistance" step="0.05"></label>
       </div>
-      <label class="chk"><input type="checkbox" id="optimize"> Оптимизировать порядок штрихов</label>
+      <label>Порядок письма
+        <select id="order">
+          <option value="lines">По строкам: сверху вниз, слева направо</option>
+          <option value="shortest">Кратчайший путь (быстрее, но вразнобой)</option>
+          <option value="asis">Как сверстано</option>
+        </select>
+      </label>
     </details>
 
     <div class="btns">
@@ -158,12 +173,24 @@
       <span id="pageInfo">Страница 1 / 1</span>
       <button id="next" type="button">›</button>
       <label class="chk inline"><input type="checkbox" id="showTravel"> холостые ходы</label>
+      <label class="chk inline"><input type="checkbox" id="showLines" checked> строки</label>
       <select id="view">
         <option value="page">Лист</option>
         <option value="bed">Стол станка</option>
       </select>
     </div>
     <div id="canvasWrap"><canvas id="canvas"></canvas></div>
+    <div class="bar sim">
+      <button id="simPlay" type="button" title="Показать, как будет двигаться ручка">▶ Симуляция</button>
+      <input type="range" id="simPos" min="0" max="1000" value="1000">
+      <select id="simSpeed" title="Скорость симуляции">
+        <option value="1">×1 (реальная)</option>
+        <option value="5">×5</option>
+        <option value="20" selected>×20</option>
+        <option value="100">×100</option>
+      </select>
+      <span id="simInfo"></span>
+    </div>
     <div id="stats"></div>
     <div class="btns">
       <button id="dlPage" type="button" class="primary">Скачать эту страницу (.gcode)</button>

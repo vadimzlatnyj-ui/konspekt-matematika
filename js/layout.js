@@ -156,7 +156,7 @@
       return { left: opt.marginLeft, right: opt.marginRight };
     };
     const newPage = () => {
-      page = { index: pages.length, strokes: [], lines: 0, margins: marginsFor(pages.length) };
+      page = { index: pages.length, strokes: [], lineOf: [], baselines: [], lines: 0, margins: marginsFor(pages.length) };
       pages.push(page);
       baseline = opt.marginTop; prevDesc = 0; lineOnPage = 0;
     };
@@ -171,7 +171,11 @@
     const placeLine = (ascMM, descMM) => {
       if (!page) newPage();
       const calc = () => {
-        if (lineOnPage === 0) return snap(opt.marginTop + Math.max(ascMM + 0.5, opt.capHeight));
+        if (lineOnPage === 0) {
+          // на первой странице можно начать ниже: с заданной клетки
+          const skip = pages.length === 1 ? Math.max(0, (opt.startRow || 1) - 1) * (opt.cell || 5) : 0;
+          return snap(opt.marginTop + skip + Math.max(ascMM + 0.5, opt.capHeight));
+        }
         const minGap = 0.8;
         return snap(Math.max(baseline + opt.linePitch, baseline + prevDesc + minGap + ascMM));
       };
@@ -182,12 +186,14 @@
       }
       if (y + descMM > opt.pageH - opt.marginBottom) warnings.push('Строка не помещается по высоте страницы — увеличьте лист или уменьшите шрифт.');
       baseline = y; prevDesc = descMM; lineOnPage++; page.lines++;
+      page.baselines.push({ y, asc: ascMM, desc: descMM });
       return y;
     };
 
     const emit = (b, xMM, yMM, k = 1) => {
       for (const st of b.strokes) {
         page.strokes.push(st.map(([x, y]) => [xMM + (x + y * slant) * s * k, yMM - y * s * k]));
+        page.lineOf.push(page.lines);
       }
     };
 
@@ -233,7 +239,7 @@
           if (nx < page.margins.left) nx += c;
           if (nx + g.w <= opt.pageW - page.margins.right + 0.01 || nx <= x) x = nx;
         }
-        for (const st of g.strokes) page.strokes.push(st.map(([px, py]) => [x + px, y - py]));
+        for (const st of g.strokes) { page.strokes.push(st.map(([px, py]) => [x + px, y - py])); page.lineOf.push(page.lines); }
         continue;
       }
       if (p.kind === 'display') {
