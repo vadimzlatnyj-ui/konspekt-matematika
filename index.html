@@ -89,6 +89,18 @@
 
     <details open>
       <summary>Почерк</summary>
+      <label>Шрифт
+        <select id="fontSel">
+          <option value="builtin">Встроенный (однолинейный)</option>
+        </select>
+      </label>
+      <div class="bar">
+        <label class="filebtn">📂 Загрузить шрифт…<input type="file" id="fontFile" accept=".font,.ttf,.otf,.woff,.svg,.jhf,.json"></label>
+        <button id="fontDel" type="button" class="danger" title="Удалить выбранный загруженный шрифт">Удалить</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="fontMath"> Писать этим шрифтом и формулы</label>
+      <p class="hint" id="fontInfo">Однолинейные шрифты для плоттеров (.jhf Hershey, .svg Hershey Text/EMS) пишутся одной линией.
+        Обычные .ttf/.otf/.woff рисуются по контуру букв (двойной линией). Буквы, которых нет в шрифте, берутся из встроенного.</p>
       <div class="row">
         <label>Высота букв, мм <input type="number" id="capHeight" step="0.1"></label>
         <label>Шаг строк, мм <input type="number" id="linePitch" step="0.5"></label>
@@ -233,6 +245,15 @@
         <button id="resumeBtn" type="button" disabled>▶ Продолжить</button>
         <button id="stopBtn" type="button" class="danger" disabled>⏹ Стоп</button>
       </div>
+      <div class="bar speed">
+        <span>Скорость:</span>
+        <button id="spdMinus" type="button" title="Медленнее на 10 %">−</button>
+        <input type="range" id="speed" min="10" max="200" step="5" value="100">
+        <button id="spdPlus" type="button" title="Быстрее на 10 %">+</button>
+        <b id="spdVal">100 %</b>
+        <button id="spdReset" type="button" title="Обычная скорость">100 %</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="parkOnStop" checked> После «Стоп» — поднять ручку и вернуть в точку старта</label>
       <div class="bar">
         <button id="jogUp" type="button" disabled>Поднять ручку</button>
         <button id="jogDown" type="button" disabled>Опустить ручку</button>
@@ -271,7 +292,9 @@
   </section>
 </main>
 
+<script src="js/vendor/opentype.min.js"></script>
 <script src="js/font.js"></script>
+<script src="js/customfont.js"></script>
 <script src="js/math.js"></script>
 <script src="js/graph.js"></script>
 <script src="js/layout.js"></script>

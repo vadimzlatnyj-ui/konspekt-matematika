@@ -135,10 +135,12 @@
         if (k === 'MPos') mpos = n;
         else if (k === 'WPos') wpos = n;
         else if (k === 'WCO') this.wco = n;
+        else if (k === 'Ov') this.override = n[0];
       }
+      this.state = state;
       if (!wpos && mpos) wpos = mpos.map((v, i) => v - (this.wco[i] || 0));
       if (wpos) this.pos = [wpos[0], wpos[1]];
-      this.on.status({ state, x: this.pos ? this.pos[0] : null, y: this.pos ? this.pos[1] : null });
+      this.on.status({ state, x: this.pos ? this.pos[0] : null, y: this.pos ? this.pos[1] : null, override: this.override });
     }
 
     raw(str) {
@@ -228,19 +230,59 @@
     }
 
     /** Аварийная остановка: сброс очереди станка и подъём ручки */
-    async stop(penUpLines) {
-      this.abortJob('stopped');
+    /** Сырые байты (команды переопределения скорости GRBL — это байты 0x90…0x97) */
+    rawBytes(arr) {
+      if (!this.writer || this.closing) return Promise.resolve();
+      return this.writer.write(new Uint8Array(arr)).catch(e => this.on.log('Ошибка записи: ' + e.message, 'err'));
+    }
+
+    /** Скорость печати в процентах (10…200). Действует сразу, в том числе во время печати. */
+    async setSpeed(pct) {
+      pct = Math.max(10, Math.min(200, Math.round(pct)));
+      if (!this.writer) return;
       if (this.firmware === 'grbl') {
-        await this.raw('!');
-        await new Promise(r => setTimeout(r, 300));
-        await this.raw('\x18');                       // soft reset — очищает буфер
-        await new Promise(r => setTimeout(r, 1500));
-        await this.raw('$X\n'); this.manual = 1;
+        const bytes = [0x90];                   // сброс к 100 %
+        let d = pct - 100;
+        while (d >= 10) { bytes.push(0x91); d -= 10; }
+        while (d <= -10) { bytes.push(0x92); d += 10; }
+        while (d > 0) { bytes.push(0x93); d--; }
+        while (d < 0) { bytes.push(0x94); d++; }
+        await this.rawBytes(bytes);
       } else {
-        await this.raw('M410\n'); this.manual = 1;     // quickstop
+        const cmd = `M220 S${pct}`;
+        if (this.job && !this.job.finished) {
+          // в Marlin — вставляем команду следующей в очередь программы
+          this.job.send.splice(this.job.idx + (this.job.inflight ? 1 : 0), 0, { text: cmd, src: -1 });
+          this.job.total++;
+        } else this.command(cmd);
       }
-      for (const l of penUpLines || []) { this.manual++; await this.raw(l + '\n'); }
-      this.on.log('Остановлено. Ручка поднята. Положение могло сбиться — сделайте «Домой» перед следующей печатью.', 'info');
+      this.speed = pct;
+    }
+
+    /**
+     * Остановка: стоп движения без потери координат, подъём ручки и (по желанию) возврат в точку старта.
+     * after — строки, которые выполнить после остановки (поднять ручку, уехать в старт).
+     */
+    async stop(after) {
+      this.abortJob('stopped');
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      if (this.firmware === 'grbl') {
+        // сначала плавное торможение (feed hold) — тогда сброс не сбивает координаты
+        await this.raw('!');
+        for (let i = 0; i < 40 && !/^(Hold:0|Idle|Alarm)/.test(this.state || ''); i++) await sleep(100);
+        await this.raw('\x18');                         // сброс очищает очередь движений
+        await sleep(1500);
+        this.manual = 0;
+        this.command('$X');                              // снять блокировку, если GRBL её поставил
+        await sleep(200);
+        if (this.speed && this.speed !== 100) await this.setSpeed(this.speed);
+      } else {
+        this.manual = 0;
+        this.command('M410');                            // быстрая остановка Marlin
+        await sleep(300);
+      }
+      for (const l of after || []) this.command(l);
+      this.on.log('Остановлено: ручка поднята' + ((after || []).some(l => /^G0 X/.test(l)) ? ' и возвращается в точку старта.' : '.'), 'info');
     }
 
     abortJob(state) {

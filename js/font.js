@@ -322,7 +322,14 @@
   const cache = new Map();
 
   /** Возвращает {w, strokes, asc, desc} или null если символа нет */
-  function getGlyph(ch) {
+  // Загруженный пользователем шрифт (см. customfont.js): для текста, а по желанию и для формул
+  let custom = null, customMath = false;
+  function setCustom(font, useInMath) { custom = font || null; customMath = !!useInMath; }
+
+  function getGlyph(ch, isText) {
+    if (custom && (isText || customMath) && ch !== ' ') {
+      try { const g = custom.get(ch); if (g) return g; } catch (e) { /* нет буквы — берём встроенную */ }
+    }
     if (cache.has(ch)) return cache.get(ch);
     const raw = resolve(ch);
     if (!raw) { cache.set(ch, null); return null; }
@@ -339,5 +346,5 @@
     return { w: 4, strokes: [[[0, 0], [4, 0], [4, 6], [0, 6], [0, 0]]], asc: 6, desc: 0 };
   }
 
-  root.PlotFont = { getGlyph, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
+  root.PlotFont = { getGlyph, setCustom, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
 })(typeof window !== 'undefined' ? window : globalThis);

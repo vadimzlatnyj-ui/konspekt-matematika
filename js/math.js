@@ -10,8 +10,8 @@
   // ---------------- коробки ----------------
   function box(w = 0, asc = 0, desc = 0, strokes = []) { return { w, asc, desc, strokes }; }
 
-  function glyphBox(ch) {
-    const g = F.getGlyph(ch) || F.unknownGlyph();
+  function glyphBox(ch, isText) {
+    const g = F.getGlyph(ch, isText) || F.unknownGlyph();
     return box(g.w, Math.max(g.asc, 0), Math.max(g.desc, 0), g.strokes.map(s => s.map(p => [p[0], p[1]])));
   }
 
@@ -213,14 +213,16 @@
       } else {
         if (OPENERS[ch]) kind = 'open'; else if (CLOSERS.has(ch)) kind = 'close';
       }
-      return { box: glyphBox(ch), kind, ch };
+      return { box: glyphBox(ch, this.opt.textMode), kind, ch };
     }
 
-    textBox(str) {
+    /** isText: true — обычный текст (\\text{…}), пишется загруженным шрифтом */
+    textBox(str, isText) {
+      this.textFont = !!isText;
       const atoms = [];
       for (const ch of str) {
         if (ch === ' ') atoms.push({ box: box(this.opt.spaceWidth), kind: 'space' });
-        else atoms.push({ box: glyphBox(ch), kind: 'ord' });
+        else atoms.push({ box: glyphBox(ch, this.textFont), kind: 'ord' });
       }
       const save = this.opt.textMode; this.opt.textMode = true;
       const b = this.joinAtoms(atoms);
@@ -369,7 +371,7 @@
           return { box: sqrtBox(c, idx), kind: 'ord' };
         }
         case 'text': case 'textrm': case 'mbox': case 'textit': case 'textbf': case 'textnormal': case 'hbox':
-          return { box: this.textBox(this.rawGroup()), kind: 'ord' };
+          return { box: this.textBox(this.rawGroup(), true), kind: 'ord' };
         case 'mathrm': case 'mathbf': case 'mathit': case 'boldsymbol': case 'bm': case 'mathsf': case 'mathcal':
         case 'mathscr': case 'pmb': case 'mathfrak': case 'mathtt':
           return { box: this.parseArg(), kind: 'ord' };

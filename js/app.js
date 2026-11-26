@@ -59,7 +59,7 @@
     betweenPages: 'G0 X{startX} Y{startY}\nM0 ; Страница {page} готова. Переверните лист и продолжите',
     footer: 'G0 X{startX} Y{startY}\nM2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
-    spread: false, spineGap: 12, spreadStart: 'left',
+    spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMath: false,
   };
 
   const SAMPLE = String.raw`Задача 1. Решите уравнение $x^2 - 5x + 6 = 0$.
@@ -83,8 +83,8 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
     'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra'];
-  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread'];
-  const STR = ['fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'fontMath'];
+  const STR = ['fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };
@@ -109,7 +109,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
   function readForm() {
     for (const k of NUM) { const v = parseFloat($(k).value); if (!isNaN(v)) cfg[k] = v; }
     for (const k of BOOL) cfg[k] = $(k).checked;
-    for (const k of STR) cfg[k] = $(k).value;
+    for (const k of STR) { if (k === 'fontSel' && !$(k).value) continue; cfg[k] = $(k).value; }
     if (PEN_METHODS[cfg.penPreset]) {
       const pc = penCommands(cfg);
       cfg.penUp = pc.up; cfg.penDown = pc.down;
@@ -162,6 +162,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
   function recompute() {
     readForm(); save();
     localStorage.setItem('plotterText', $('text').value);
+    PlotFont.setCustom(fonts.get(cfg.fontSel) || null, cfg.fontMath);
     try {
       result = PlotLayout.layoutDocument($('text').value, cfg);
     } catch (e) {
@@ -638,9 +639,10 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       setting: (n, v) => { grbl[n] = v; if (n === 32 || n === 30) showDiag(); },
       log: logLine,
       state: setState,
-      status: ({ state, x, y }) => {
+      status: ({ state, x, y, override }) => {
         if (x != null) live.pos = [x, y];
         $('liveInfo').textContent = `Станок: ${state}` + (x != null ? `   X ${x.toFixed(2)}  Y ${y.toFixed(2)}` : '') +
+          (override && override !== 100 ? `   ·  скорость ${override} %` : '') +
           (live.active ? `   ·  ручка ${live.pen ? 'пишет' : 'поднята'}` : '');
         if (live.active || $('view').value === 'bed') queueDraw();
       },
@@ -656,6 +658,13 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
         queueDraw();
       },
     });
+    /** Что сделать после «Стоп»: поднять ручку и (если включено) уехать в точку старта */
+    const afterStop = () => {
+      const l = cfg.penUp.split('\n').map(x => x.replace(/;.*/, '').trim()).filter(Boolean);
+      if ($('parkOnStop').checked) l.push('G90', `G0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`);
+      return l;
+    };
+
     // ----- автоподбор способа подъёма ручки -----
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const CANDIDATES = [
@@ -717,11 +726,15 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       try {
         if (sender.connected) {
           if (sender.job && !sender.job.finished && !confirm('Идёт печать. Остановить её и отключиться?')) return;
-          if (sender.job && !sender.job.finished) await sender.stop(cfg.penUp.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean));
+          if (sender.job && !sender.job.finished) await sender.stop(afterStop());
           $('connect').disabled = true; $('connect').textContent = 'Отключаю…';
           try { await sender.disconnect(); } finally { $('connect').disabled = false; }
         }
-        else { await sender.connect($('baud').value, $('fw').value); }
+        else {
+          await sender.connect($('baud').value, $('fw').value);
+          const pct = +$('speed').value || 100;
+          if (pct !== 100) setTimeout(() => sender.setSpeed(pct), 2600);
+        }
       } catch (e) {
         if (e.name !== 'NotFoundError') logLine('Не удалось подключиться: ' + e.message, 'err');
         setState('disconnected');
@@ -733,12 +746,33 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       if (pageIdx !== live.page) { pageIdx = live.page; render(); }
       $('printProg').value = 0;
       sender.start(prog.lines, prog.meta);
+      const pct = +$('speed').value || 100;
+      if (pct !== 100) sender.setSpeed(pct);
     };
     $('printPage').onclick = () => startPrint(pageIdx);
     $('printAll').onclick = () => startPrint(null);
     $('pauseBtn').onclick = () => sender.pause();
     $('resumeBtn').onclick = () => sender.resume();
-    $('stopBtn').onclick = () => sender.stop(cfg.penUp.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean));
+    $('stopBtn').onclick = () => sender.stop(afterStop());
+
+    // ----- скорость печати -----
+    const showSpeed = pct => {
+      $('speed').value = pct;
+      $('spdVal').textContent = `${pct} % (письмо ≈ ${Math.round(cfg.feedDraw * pct / 100)} мм/мин)`;
+    };
+    let spdTimer = null;
+    const applySpeed = pct => {
+      pct = Math.max(10, Math.min(200, pct));
+      showSpeed(pct);
+      localStorage.setItem('plotterSpeed', pct);
+      clearTimeout(spdTimer);
+      spdTimer = setTimeout(() => { if (sender.connected) sender.setSpeed(pct); }, 150);
+    };
+    $('speed').oninput = () => applySpeed(+$('speed').value);
+    $('spdMinus').onclick = () => applySpeed(+$('speed').value - 10);
+    $('spdPlus').onclick = () => applySpeed(+$('speed').value + 10);
+    $('spdReset').onclick = () => applySpeed(100);
+    showSpeed(+localStorage.getItem('plotterSpeed') || 100);
     const cmds = t => t.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean).forEach(c => sender.command(c));
     $('jogUp').onclick = () => cmds(cfg.penUp);
     $('jogDown').onclick = () => cmds(cfg.penDown);
@@ -746,9 +780,96 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     setState('disconnected');
   }
 
+  // ---------- свои шрифты (хранятся в IndexedDB, чтобы пережить перезапуск) ----------
+  const fonts = new Map();   // id → загруженный шрифт
+  let fontsReady = false;
+  const fontDB = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('plotterFonts', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('fonts', { keyPath: 'id' });
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const tx = (mode, fn) => open().then(db => new Promise((res, rej) => {
+      const t = db.transaction('fonts', mode); const st = t.objectStore('fonts');
+      const r = fn(st); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error);
+    }));
+    return {
+      all: () => tx('readonly', st => st.getAll()),
+      put: rec => tx('readwrite', st => st.put(rec)),
+      del: id => tx('readwrite', st => st.delete(id)),
+    };
+  })();
+
+  function fontOptions() {
+    const sel = $('fontSel');
+    sel.innerHTML = '<option value="builtin">Встроенный (однолинейный)</option>';
+    for (const [id, f] of fonts) {
+      const o = document.createElement('option');
+      o.value = id;
+      o.textContent = `${f.name} — ${f.kind === 'outline' ? 'по контуру' : 'однолинейный'}`;
+      sel.appendChild(o);
+    }
+    if (cfg.fontSel !== 'builtin' && !fonts.has(cfg.fontSel) && !fontsReady) {
+      // шрифт ещё читается из хранилища — не сбрасываем выбор
+      const o = document.createElement('option'); o.value = cfg.fontSel; o.textContent = '(загружается…)'; sel.appendChild(o);
+    }
+    sel.value = fonts.has(cfg.fontSel) || !fontsReady ? cfg.fontSel : 'builtin';
+    $('fontDel').disabled = sel.value === 'builtin';
+  }
+
+  function addFont(id, name, buf) {
+    const f = PlotCustomFont.load(name, buf);
+    fonts.set(id, f);
+    return f;
+  }
+
+  async function initFonts() {
+    try {
+      for (const rec of await fontDB.all()) {
+        try { addFont(rec.id, rec.name, rec.data); } catch (e) { console.warn('шрифт не загрузился', rec.name, e); }
+      }
+    } catch (e) { console.warn('хранилище шрифтов недоступно', e); }
+    fontsReady = true;
+    fontOptions();
+    if (cfg.fontSel !== 'builtin' && fonts.has(cfg.fontSel)) recompute();
+  }
+
+  $('fontFile').onchange = async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const id = 'f' + Date.now();
+      const name = file.name.replace(/\.[^.]+$/, '');
+      const f = addFont(id, name, buf);
+      // проверим, что буквы правда есть
+      const probe = Array.from('АБВГДЕЖЗИКЛМНОПРСТУФХабвгдежзиклмнопрстуфхэюяABCDEFGHabcdefgh0123456789').filter(c => f.get(c)).length;
+      if (!probe) throw new Error('в шрифте не нашлось ни русских, ни латинских букв');
+      try { await fontDB.put({ id, name, data: buf }); } catch (err) { alert('Шрифт загружен, но не сохранится после перезапуска: ' + err.message); }
+      cfg.fontSel = id; fontOptions(); $('fontSel').value = id;
+      const nRu = Array.from('абвгдеёжзийклмнопрстуфхцчшщъыьэюя').filter(c => f.get(c)).length;
+      const ru = nRu === 33 ? 'все русские буквы есть' : nRu ? `русских строчных букв ${nRu} из 33 — недостающие будут встроенным шрифтом` : 'русских букв нет — они будут встроенным шрифтом';
+      $('fontInfo').textContent = `Загружен «${name}»: ${f.kind === 'outline' ? 'обычный шрифт, буквы рисуются по контуру' : 'однолинейный шрифт'}, ${ru}.`;
+      schedule();
+    } catch (err) {
+      alert('Не удалось загрузить шрифт: ' + err.message);
+    }
+  };
+  $('fontDel').onclick = async () => {
+    const id = $('fontSel').value;
+    if (id === 'builtin' || !confirm('Удалить этот шрифт из программы?')) return;
+    fonts.delete(id);
+    try { await fontDB.del(id); } catch (e) { /* */ }
+    cfg.fontSel = 'builtin'; fontOptions(); schedule();
+  };
+  $('fontSel').addEventListener('change', () => { $('fontDel').disabled = $('fontSel').value === 'builtin'; });
+
   fillForm();
   $('text').value = localStorage.getItem('plotterText') ?? SAMPLE;
   bind();
   initSerial();
+  fontOptions();
   recompute();
+  initFonts();
 })();
