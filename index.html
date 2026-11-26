@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Плоттер-конспект: формулы → G-code</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <h1>Плоттер-конспект <span>текст и формулы → G-code, по страницам тетради</span></h1>
+</header>
+
+<main>
+  <!-- ===== Настройки ===== -->
+  <aside id="settings">
+    <details open>
+      <summary>Тетрадь</summary>
+      <label>Формат
+        <select id="preset">
+          <option value="notebook">Школьная тетрадь 170×205</option>
+          <option value="a5">A5 148×210</option>
+          <option value="a4">A4 210×297</option>
+          <option value="general">Общая тетрадь 165×205</option>
+          <option value="custom">Свой размер</option>
+        </select>
+      </label>
+      <div class="row">
+        <label>Ширина, мм <input type="number" id="pageW" step="1"></label>
+        <label>Высота, мм <input type="number" id="pageH" step="1"></label>
+      </div>
+      <label>Размер клетки, мм <input type="number" id="cell" step="0.5"></label>
+      <div class="row">
+        <label>Поле сверху <input type="number" id="marginTop" step="1"></label>
+        <label>Поле снизу <input type="number" id="marginBottom" step="1"></label>
+      </div>
+      <div class="row">
+        <label>Поле слева <input type="number" id="marginLeft" step="1"></label>
+        <label>Поле справа <input type="number" id="marginRight" step="1"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="mirrorMargins"> Зеркальные поля на чётных страницах</label>
+      <label class="chk"><input type="checkbox" id="snapToGrid"> Строки по линиям клеток</label>
+      <label>Номер первой страницы <input type="number" id="firstPage" step="1" min="1"></label>
+    </details>
+
+    <details open>
+      <summary>Положение тетради на столе</summary>
+      <div class="row">
+        <label>X угла, мм <input type="number" id="offsetX" step="0.5"></label>
+        <label>Y угла, мм <input type="number" id="offsetY" step="0.5"></label>
+      </div>
+      <p class="hint">Координаты левого нижнего угла листа (по габариту после поворота) в системе станка.</p>
+      <label>Поворот листа
+        <select id="rotation">
+          <option value="0">0° (верх листа → +Y)</option>
+          <option value="90">90° (верх листа → −X)</option>
+          <option value="180">180° (верх листа → −Y)</option>
+          <option value="270">270° (верх листа → +X)</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="mirrorX"> Отразить по X</label>
+      <label class="chk"><input type="checkbox" id="mirrorY"> Отразить по Y (ось Y станка направлена к себе)</label>
+      <div class="row">
+        <label>Стол X, мм <input type="number" id="bedW" step="1"></label>
+        <label>Стол Y, мм <input type="number" id="bedH" step="1"></label>
+      </div>
+    </details>
+
+    <details open>
+      <summary>Почерк</summary>
+      <div class="row">
+        <label>Высота букв, мм <input type="number" id="capHeight" step="0.1"></label>
+        <label>Шаг строк, мм <input type="number" id="linePitch" step="0.5"></label>
+      </div>
+      <div class="row">
+        <label>Между буквами <input type="number" id="letterSpacing" step="0.1"></label>
+        <label>Пробел <input type="number" id="wordSpacing" step="0.1"></label>
+      </div>
+      <div class="row">
+        <label>Наклон, ° <input type="number" id="slant" step="1"></label>
+        <label>Отступ абзаца, мм <input type="number" id="indent" step="1"></label>
+      </div>
+      <div class="row">
+        <label>Масштаб дробей <input type="number" id="fracScale" step="0.05"></label>
+        <label>Масштаб индексов <input type="number" id="scriptScale" step="0.05"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="centerDisplay"> Формулы <code>$$…$$</code> по центру</label>
+    </details>
+
+    <details open>
+      <summary>Ручка и подачи</summary>
+      <label>Механизм ручки
+        <select id="penPreset">
+          <option value="servo">Серво M3 S (GRBL servo)</option>
+          <option value="z">Ось Z (GRBL / Marlin)</option>
+          <option value="m280">Серво M280 (Marlin)</option>
+          <option value="custom">Свои команды</option>
+        </select>
+      </label>
+      <label>Поднять ручку <textarea id="penUp" rows="2"></textarea></label>
+      <label>Опустить ручку <textarea id="penDown" rows="2"></textarea></label>
+      <div class="row">
+        <label>Подача письма, мм/мин <input type="number" id="feedDraw" step="100"></label>
+        <label>Подача холостая, мм/мин <input type="number" id="feedTravel" step="100"></label>
+      </div>
+      <label>Пауза на подъём/опускание, с (для оценки времени) <input type="number" id="penDelay" step="0.05"></label>
+      <label class="chk"><input type="checkbox" id="travelG0"> Холостые перемещения через G0</label>
+    </details>
+
+    <details>
+      <summary>G-code</summary>
+      <label>Начало программы <textarea id="header" rows="3"></textarea></label>
+      <label>Между страницами (в общем файле) <textarea id="betweenPages" rows="3"></textarea></label>
+      <label>Конец программы <textarea id="footer" rows="3"></textarea></label>
+      <p class="hint">Подстановки: <code>{page}</code>, <code>{next}</code>, <code>{pages}</code>.</p>
+      <div class="row">
+        <label>Знаков после запятой <input type="number" id="decimals" min="0" max="5"></label>
+        <label>Склейка штрихов, мм <input type="number" id="joinDistance" step="0.05"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="optimize"> Оптимизировать порядок штрихов</label>
+    </details>
+
+    <div class="btns">
+      <button id="saveCfg" type="button">Сохранить настройки в файл</button>
+      <label class="filebtn">Загрузить настройки<input type="file" id="loadCfg" accept=".json"></label>
+      <button id="resetCfg" type="button" class="danger">Сбросить</button>
+    </div>
+  </aside>
+
+  <!-- ===== Текст ===== -->
+  <section id="editor">
+    <div class="bar">
+      <b>Текст ответа</b>
+      <span class="hint">Формулы в <code>$…$</code>, <code>$$…$$</code>, <code>\(…\)</code>, <code>\[…\]</code>. Новая страница — строка <code>\newpage</code>.</span>
+    </div>
+    <textarea id="text" spellcheck="false"></textarea>
+    <div id="warnings"></div>
+    <details class="help">
+      <summary>Что поддерживается в формулах</summary>
+      <p><code>^ _ \frac \sqrt \sqrt[3]{} \left( \right) \sum \prod \int \lim_{x\to0} \sin \log \vec \overline \hat \text{…}
+        \begin{cases} \begin{pmatrix} \begin{aligned}</code>, греческие буквы <code>\alpha … \Omega</code>, знаки
+        <code>\cdot \times \pm \le \ge \ne \approx \infty \to \Rightarrow \in \cup \cap \angle \perp \parallel \degree</code>.
+        В обычном тексте понимаются и юникод-символы: <code>x² √2 ≤ ≠ π α → ½</code>.</p>
+    </details>
+  </section>
+
+  <!-- ===== Предпросмотр ===== -->
+  <section id="preview">
+    <div class="bar">
+      <button id="prev" type="button">‹</button>
+      <span id="pageInfo">Страница 1 / 1</span>
+      <button id="next" type="button">›</button>
+      <label class="chk inline"><input type="checkbox" id="showTravel"> холостые ходы</label>
+      <select id="view">
+        <option value="page">Лист</option>
+        <option value="bed">Стол станка</option>
+      </select>
+    </div>
+    <div id="canvasWrap"><canvas id="canvas"></canvas></div>
+    <div id="stats"></div>
+    <div class="btns">
+      <button id="dlPage" type="button" class="primary">Скачать эту страницу (.gcode)</button>
+      <button id="dlAll" type="button">Все страницы одним файлом</button>
+      <button id="dlEach" type="button">Каждую страницу отдельно</button>
+      <button id="copyPage" type="button">Копировать G-code страницы</button>
+    </div>
+    <details>
+      <summary>G-code текущей страницы</summary>
+      <textarea id="gcodeOut" readonly rows="14" spellcheck="false"></textarea>
+    </details>
+  </section>
+</main>
+
+<script src="js/font.js"></script>
+<script src="js/math.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/gcode.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

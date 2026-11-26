@@ -1,0 +1,260 @@
+/*
+ * Вёрстка текста с формулами по страницам тетради.
+ * Результат: страницы со штрихами в миллиметрах, координаты страницы:
+ * (0,0) — левый верхний угол листа, X вправо, Y вниз.
+ */
+(function (root) {
+  'use strict';
+  const M = root.PlotMath;
+
+  /** Чистка markdown-разметки, которую обычно содержит ответ чат-бота */
+  function cleanMarkdown(text) {
+    return text
+      .replace(/\r\n?/g, '\n')
+      .replace(/```[a-z]*\n?/gi, '')
+      .split('\n').map(line => {
+        let l = line;
+        l = l.replace(/^\s{0,3}#{1,6}\s+/, '');          // заголовки
+        l = l.replace(/^\s*>\s?/, '');                   // цитаты
+        l = l.replace(/^(\s*)[*+-]\s+/, '$1– ');          // маркированные списки
+        l = l.replace(/^\s*([-*_])\1{2,}\s*$/, '');       // горизонтальные линии
+        l = l.replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1');
+        l = l.replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, '$1$2');
+        l = l.replace(/`([^`]*)`/g, '$1');
+        return l;
+      }).join('\n');
+  }
+
+  /**
+   * Разбивает текст на сегменты: {type:'text'|'math'|'display', src}
+   */
+  function segment(text) {
+    const segs = [];
+    let i = 0, buf = '';
+    const flush = () => { if (buf) segs.push({ type: 'text', src: buf }); buf = ''; };
+    const findClose = (close, from) => {
+      let k = from;
+      while (true) {
+        k = text.indexOf(close, k);
+        if (k < 0) return -1;
+        if (text[k - 1] === '\\' && close[0] === '$') { k++; continue; }
+        return k;
+      }
+    };
+    while (i < text.length) {
+      const two = text.substr(i, 2);
+      if (two === '\\$') { buf += '$'; i += 2; continue; }
+      let open = null, close = null, type = null;
+      if (two === '$$') { open = '$$'; close = '$$'; type = 'display'; }
+      else if (two === '\\[') { open = '\\['; close = '\\]'; type = 'display'; }
+      else if (two === '\\(') { open = '\\('; close = '\\)'; type = 'math'; }
+      else if (text[i] === '$') { open = '$'; close = '$'; type = 'math'; }
+      if (open) {
+        const end = findClose(close, i + open.length);
+        // одиночный $ без пары, или строчная формула, разорванная переводом строки — считаем текстом
+        if (end >= 0 && !(type === 'math' && text.slice(i + open.length, end).includes('\n\n'))) {
+          flush();
+          segs.push({ type, src: text.slice(i + open.length, end) });
+          i = end + close.length;
+          continue;
+        }
+      }
+      buf += text[i]; i++;
+    }
+    flush();
+    return segs;
+  }
+
+  /**
+   * Превращает сегменты в абзацы. Абзац — {kind:'para', tokens:[...]} | {kind:'display', box} | {kind:'blank'} | {kind:'pagebreak'}
+   * tokens: {t:'box', box, glue:bool} | {t:'space'}
+   */
+  function paragraphs(segs, opt) {
+    const paras = [];
+    let cur = null, nl = 1;
+    const mopt = {
+      letterSpacing: opt.letterSpacing, fracScale: opt.fracScale, scriptScale: opt.scriptScale, spaceWidth: opt.wordSpacing,
+    };
+    const content = () => { if (!cur) { cur = { kind: 'para', tokens: [] }; paras.push(cur); } nl = 0; };
+    const newline = () => {
+      cur = null; nl++;
+      if (nl === 2) paras.push({ kind: 'blank' });
+    };
+
+    for (const s of segs) {
+      if (s.type === 'text') {
+        s.src.split('\n').forEach((line, li) => {
+          if (li > 0) newline();
+          const trimmed = line.trim();
+          if (/^(\\newpage|\\pagebreak|\\clearpage|-{3}\s*page\s*-{3}|={3,}|\[страница\]|\[page\])$/i.test(trimmed)) {
+            cur = null; nl = 1; paras.push({ kind: 'pagebreak' }); return;
+          }
+          if (!trimmed) return;
+          for (const part of line.split(/(\s+)/)) {
+            if (!part) continue;
+            if (/^\s+$/.test(part)) { if (cur) cur.tokens.push({ t: 'space' }); continue; }
+            content();
+            cur.tokens.push({ t: 'box', box: M.layoutTextWord(part, mopt) });
+          }
+        });
+      } else if (s.type === 'math') {
+        content();
+        cur.tokens.push({ t: 'box', box: M.layoutMath(s.src, mopt), math: true });
+      } else {
+        paras.push({ kind: 'display', box: M.layoutMath(s.src.replace(/\n/g, ' '), mopt) });
+        cur = null; nl = 0; // перевод строки сразу после формулы — просто конец её строки
+      }
+    }
+    const out = paras.filter(p => !(p.kind === 'para' && !p.tokens.length));
+    while (out.length && out[0].kind === 'blank') out.shift();
+    while (out.length && out[out.length - 1].kind === 'blank') out.pop();
+    return out;
+  }
+
+  /** Склеивает соседние коробки без пробела (например, формулу и запятую) в неразрывные куски */
+  function chunks(tokens, opt) {
+    const res = [];
+    let cur = [];
+    const flush = () => {
+      if (cur.length) {
+        const gaps = cur.slice(1).map(() => opt.letterSpacing);
+        res.push(cur.length === 1 ? cur[0] : M.hcat(cur, gaps));
+      }
+      cur = [];
+    };
+    for (const t of tokens) {
+      if (t.t === 'space') { flush(); res.push(null); }
+      else cur.push(t.box);
+    }
+    flush();
+    return res; // null = пробел
+  }
+
+  /**
+   * Главная функция вёрстки.
+   * opt: { pageW, pageH, marginTop, marginBottom, marginLeft, marginRight, mirrorMargins,
+   *        capHeight, linePitch, cell, snapToGrid, letterSpacing, wordSpacing, indent,
+   *        slant, fracScale, scriptScale, centerDisplay, firstPage }
+   */
+  function layoutDocument(text, opt) {
+    const s = opt.capHeight / 9;          // мм на единицу шрифта
+    const slant = Math.tan((opt.slant || 0) * Math.PI / 180);
+    const warnings = [];
+    const paras = paragraphs(segment(cleanMarkdown(text)), opt);
+
+    const pages = [];
+    let page = null;
+    let baseline = 0;     // текущая базовая линия (мм от верха листа)
+    let prevDesc = 0;     // нижний вынос предыдущей строки (мм)
+    let lineOnPage = 0;
+
+    const marginsFor = idx => {
+      const even = (idx + (opt.firstPage || 1)) % 2 === 0;
+      if (opt.mirrorMargins && even) return { left: opt.marginRight, right: opt.marginLeft };
+      return { left: opt.marginLeft, right: opt.marginRight };
+    };
+    const newPage = () => {
+      page = { index: pages.length, strokes: [], lines: 0, margins: marginsFor(pages.length) };
+      pages.push(page);
+      baseline = opt.marginTop; prevDesc = 0; lineOnPage = 0;
+    };
+    const snap = v => {
+      if (!opt.snapToGrid || !opt.cell) return v;
+      const rel = v - opt.marginTop;
+      return opt.marginTop + Math.ceil(rel / opt.cell - 1e-6) * opt.cell;
+    };
+    const textW = () => opt.pageW - page.margins.left - page.margins.right;
+
+    /** Найти базовую линию для строки высотой asc/desc (мм); при нехватке места — новая страница */
+    const placeLine = (ascMM, descMM) => {
+      if (!page) newPage();
+      const calc = () => {
+        if (lineOnPage === 0) return snap(opt.marginTop + Math.max(ascMM + 0.5, opt.capHeight));
+        const minGap = 0.8;
+        return snap(Math.max(baseline + opt.linePitch, baseline + prevDesc + minGap + ascMM));
+      };
+      let y = calc();
+      if (y + descMM > opt.pageH - opt.marginBottom && lineOnPage > 0) {
+        newPage();
+        y = calc();
+      }
+      if (y + descMM > opt.pageH - opt.marginBottom) warnings.push('Строка не помещается по высоте страницы — увеличьте лист или уменьшите шрифт.');
+      baseline = y; prevDesc = descMM; lineOnPage++; page.lines++;
+      return y;
+    };
+
+    const emit = (b, xMM, yMM, k = 1) => {
+      for (const st of b.strokes) {
+        page.strokes.push(st.map(([x, y]) => [xMM + (x + y * slant) * s * k, yMM - y * s * k]));
+      }
+    };
+
+    const fitScale = (b, avail) => {
+      const w = b.w * s;
+      if (w <= avail) return 1;
+      warnings.push('Слишком широкий фрагмент уменьшен, чтобы влезть в строку.');
+      return avail / w;
+    };
+
+    for (const p of paras) {
+      if (p.kind === 'pagebreak') { if (page && page.strokes.length) newPage(); else if (!page) newPage(); continue; }
+      if (p.kind === 'blank') {
+        if (!page) newPage();
+        if (lineOnPage > 0) {
+          const y = snap(baseline + opt.linePitch);
+          if (y > opt.pageH - opt.marginBottom) newPage();
+          else { baseline = y; prevDesc = 0; }
+        }
+        continue;
+      }
+      if (p.kind === 'display') {
+        if (!page) newPage();
+        const avail = textW();
+        const k = fitScale(p.box, avail);
+        const y = placeLine(p.box.asc * s * k, p.box.desc * s * k);
+        const w = p.box.w * s * k;
+        const x = page.margins.left + (opt.centerDisplay ? (avail - w) / 2 : opt.indent);
+        emit(p.box, x, y, k);
+        continue;
+      }
+      // обычный абзац: перенос по словам
+      const parts = chunks(p.tokens, opt);
+      let line = [];
+      let lineW = 0, first = true;
+      const spaceMM = opt.wordSpacing * s;
+      const flushLine = () => {
+        if (!line.length) return;
+        if (!page) newPage();
+        let asc = 0, desc = 0;
+        for (const it of line) { asc = Math.max(asc, it.b.asc * s * it.k); desc = Math.max(desc, it.b.desc * s * it.k); }
+        const y = placeLine(asc, desc);
+        for (const it of line) emit(it.b, page.margins.left + it.x, y, it.k);
+        line = []; lineW = 0;
+      };
+      let pendingSpace = false;
+      for (const c of parts) {
+        if (c === null) { pendingSpace = line.length > 0; continue; }
+        if (!page) newPage();
+        const avail = textW();
+        const startX = (first && line.length === 0) ? (opt.indent || 0) : 0;
+        let k = fitScale(c, avail - startX);
+        const w = c.w * s * k;
+        let x = line.length ? lineW + (pendingSpace ? spaceMM : opt.letterSpacing * s) : startX;
+        if (line.length && x + w > avail) {
+          flushLine();
+          first = false;
+          x = 0;
+          k = fitScale(c, avail);
+        }
+        line.push({ b: c, x, k });
+        lineW = x + c.w * s * k;
+        pendingSpace = false;
+      }
+      flushLine();
+    }
+    if (!pages.length) newPage();
+    return { pages, warnings: Array.from(new Set(warnings)) };
+  }
+
+  root.PlotLayout = { layoutDocument, cleanMarkdown, segment };
+})(typeof window !== 'undefined' ? window : globalThis);
