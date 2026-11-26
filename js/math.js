@@ -189,7 +189,7 @@
           if (a.kind === 'rel' || b.kind === 'rel') g += 1.6;
           else if (isBin(k) || isBin(k + 1)) g += 1.2;
           if (a.kind === 'punct') g += 1.8;
-          if (a.kind === 'fn' && b.kind !== 'open') g += 1.2;
+          if (a.kind === 'fn' && b.kind !== 'open') g += 2.2;
           if (a.kind === 'op') g += 0.6;
         }
         gaps.push(g);
@@ -322,13 +322,14 @@
       }
       if (sub) {
         const D = scaleBox(sub, ss);
-        const down = isInt ? base.desc + 0.5 : Math.max(2.2, base.desc + 0.6);
-        const x = isInt ? base.w - 0.8 : base.w + 0.4;
+        const isFn = atom.kind === 'fn';
+        const down = isInt ? base.desc + 0.5 : isFn ? 2.4 : Math.max(2.2, base.desc + 0.6);
+        const x = isInt ? base.w - 0.8 : base.w + (isFn ? 0.9 : 0.4);
         put(out, D, x, -down);
         w = Math.max(w, x + D.w);
       }
       out.w = w;
-      return { box: out, kind: atom.kind === 'op' ? 'op' : 'ord' };
+      return { box: out, kind: atom.kind === 'op' || atom.kind === 'fn' ? atom.kind : 'ord' };
     }
 
     command(name) {
