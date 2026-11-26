@@ -66,3 +66,9 @@ button.danger { color: #b91c1c; }
 #serialLog .err { color: #fca5a5; } #serialLog .tx { color: #93c5fd; } #serialLog .info { color: #86efac; }
 button:disabled { opacity: .5; cursor: default; }
 #serialLog:empty { display: none; }
+
+details.sub { border: none; padding: 2px 0; }
+details.sub summary { font-weight: 500; font-size: 12px; color: #4b5563; }
+#grblDiag { font-size: 12px; }
+#grblDiag .warn { background: #fef3c7; color: #92400e; padding: 6px 8px; border-radius: 6px; margin: 4px 0; }
+#grblDiag .ok { color: #166534; }

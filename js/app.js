@@ -6,11 +6,44 @@
   const PAGE_PRESETS = {
     notebook: [170, 205], a5: [148, 210], a4: [210, 297], general: [165, 205],
   };
-  const PEN_PRESETS = {
-    servo: { penUp: 'M3 S90\nG4 P0.2', penDown: 'M3 S30\nG4 P0.2' },
-    z: { penUp: 'G0 Z5', penDown: 'G1 Z0 F1000' },
-    m280: { penUp: 'M280 P0 S90\nG4 P150', penDown: 'M280 P0 S30\nG4 P150' },
+  // Способы подъёма ручки: подписи полей и значения по умолчанию
+  const PEN_METHODS = {
+    servo: { up: 90, down: 30, lbl: ['S — поднято', 'S — опущено'] },
+    servoM5: { up: 0, down: 30, lbl: ['(поднято = M5)', 'S — опущено'], noUp: true },
+    z: { up: 5, down: 0, extra: 1000, lbl: ['Z — поднято, мм', 'Z — опущено, мм'], extraLbl: 'Подача Z, мм/мин' },
+    m280: { up: 90, down: 30, extra: 0, lbl: ['Угол — поднято, °', 'Угол — опущено, °'], extraLbl: 'Номер серво (P)' },
+    solenoid: { up: 0, down: 1000, lbl: ['(поднято = M5)', 'S — сила, вкл'], noUp: true },
   };
+
+  /** Команды подъёма/опускания из выбранного способа */
+  function penCommands(c) {
+    const m = c.penPreset;
+    if (!PEN_METHODS[m]) return { up: c.penUp, down: c.penDown };
+    const u = +c.penUpVal, d = +c.penDownVal, x = +c.penExtra;
+    const waitS = Math.max(0, +c.penDelay || 0);
+    const wait = waitS > 0 ? '\nG4 P' + (c.fw === 'marlin' ? Math.round(waitS * 1000) : +waitS.toFixed(3)) : '';
+    switch (m) {
+      case 'servo': return { up: `M3 S${u}${wait}`, down: `M3 S${d}${wait}` };
+      case 'servoM5': return { up: `M5${wait}`, down: `M3 S${d}${wait}` };
+      case 'z': return { up: `G0 Z${u}`, down: `G1 Z${d} F${x || 1000}` };
+      case 'm280': return { up: `M280 P${x || 0} S${u}${wait}`, down: `M280 P${x || 0} S${d}${wait}` };
+      case 'solenoid': return { up: `M5${wait}`, down: `M3 S${d}${wait}` };
+    }
+  }
+
+  function updatePenUI(resetValues) {
+    const m = PEN_METHODS[$('penPreset').value];
+    $('penVals').style.display = m ? '' : 'none';
+    $('penExtraWrap').style.visibility = m && m.extraLbl ? 'visible' : 'hidden';
+    if (!m) { $('penUp').readOnly = $('penDown').readOnly = false; return; }
+    $('penUpLbl').textContent = m.lbl[0]; $('penDownLbl').textContent = m.lbl[1];
+    $('penUpVal').disabled = !!m.noUp;
+    if (m.extraLbl) $('penExtraLbl').textContent = m.extraLbl;
+    if (resetValues) {
+      $('penUpVal').value = m.up; $('penDownVal').value = m.down;
+      if (m.extra !== undefined) $('penExtra').value = m.extra;
+    }
+  }
 
   const DEFAULTS = {
     preset: 'notebook', pageW: 170, pageH: 205, cell: 5,
@@ -19,7 +52,8 @@
     offsetX: 20, offsetY: 20, rotation: 0, mirrorX: false, mirrorY: false, bedW: 300, bedH: 300,
     capHeight: 4, linePitch: 10, letterSpacing: 1.2, wordSpacing: 4, slant: 0, indent: 0,
     fracScale: 0.8, scriptScale: 0.65, centerDisplay: true,
-    penPreset: 'servo', penUp: PEN_PRESETS.servo.penUp, penDown: PEN_PRESETS.servo.penDown,
+    penPreset: 'servo', penUpVal: 90, penDownVal: 30, penExtra: 1000, fw: 'grbl', baud: '115200',
+    penUp: 'M3 S90\nG4 P0.2', penDown: 'M3 S30\nG4 P0.2',
     feedDraw: 1500, feedTravel: 4000, penDelay: 0.2, travelG0: true,
     header: 'G21 ; миллиметры\nG90 ; абсолютные координаты',
     betweenPages: 'G0 X{startX} Y{startY}\nM0 ; Страница {page} готова. Переверните лист и продолжите',
@@ -48,9 +82,9 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
 
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
-    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap'];
+    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra'];
   const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread'];
-  const STR = ['spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+  const STR = ['fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };
@@ -68,11 +102,19 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     for (const k of NUM.concat(STR)) if ($(k)) $(k).value = cfg[k];
     for (const k of BOOL) if ($(k)) $(k).checked = !!cfg[k];
     $('rotation').value = String(cfg.rotation);
+    if (!PEN_METHODS[cfg.penPreset] && cfg.penPreset !== 'custom') cfg.penPreset = 'custom';
+    $('penPreset').value = cfg.penPreset;
+    updatePenUI(false);
   }
   function readForm() {
     for (const k of NUM) { const v = parseFloat($(k).value); if (!isNaN(v)) cfg[k] = v; }
     for (const k of BOOL) cfg[k] = $(k).checked;
     for (const k of STR) cfg[k] = $(k).value;
+    if (PEN_METHODS[cfg.penPreset]) {
+      const pc = penCommands(cfg);
+      cfg.penUp = pc.up; cfg.penDown = pc.down;
+      $('penUp').value = pc.up; $('penDown').value = pc.down;
+    }
   }
 
   // ---------- пересчёт ----------
@@ -480,12 +522,17 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       schedule();
     });
     ['pageW', 'pageH'].forEach(id => $(id).addEventListener('input', () => { $('preset').value = 'custom'; }));
-    $('penPreset').addEventListener('change', () => {
-      const p = PEN_PRESETS[$('penPreset').value];
-      if (p) { $('penUp').value = p.penUp; $('penDown').value = p.penDown; }
-      schedule();
-    });
-    ['penUp', 'penDown'].forEach(id => $(id).addEventListener('input', () => { $('penPreset').value = 'custom'; }));
+    $('penPreset').addEventListener('change', () => { updatePenUI(true); schedule(); });
+    $('fw').addEventListener('change', schedule);
+    const testPen = up => {
+      readForm();
+      if (!sender || !sender.connected) { alert('Сначала подключите плоттер: справа кнопка «🔌 Подключить».'); return; }
+      const c = up ? cfg.penUp : cfg.penDown;
+      c.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean).forEach(l => sender.command(l));
+    };
+    $('penTestUp').onclick = () => testPen(true);
+    $('penTestDown').onclick = () => testPen(false);
+    ['penUp', 'penDown'].forEach(id => $(id).addEventListener('input', () => { $('penPreset').value = 'custom'; updatePenUI(false); }));
     $('prev').onclick = () => { if (pageIdx > 0) { pageIdx--; render(); } };
     $('next').onclick = () => { if (pageIdx < sheets.length - 1) { pageIdx++; render(); } };
     $('showTravel').onchange = () => draw();
@@ -569,7 +616,26 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       $('connect').disabled = true;
       return;
     }
+    const grbl = {};
+    const showDiag = () => {
+      const el = $('grblDiag');
+      if (cfg.fw !== 'grbl' || grbl[32] === undefined) { el.innerHTML = ''; return; }
+      let h = `<div class="ok">GRBL: $30 (макс. S) = ${grbl[30] ?? '?'}, $32 (лазерный режим) = ${grbl[32]}</div>`;
+      if (+grbl[32] === 1 && ['servo', 'servoM5', 'solenoid'].includes(cfg.penPreset)) {
+        h += `<div class="warn">Включён <b>лазерный режим</b> ($32=1): в нём команда M3 S… работает только во время рисования,
+          а в паузах и на холостых ходах сигнал пропадает — ручка не поднимается/не опускается.
+          <br><button type="button" id="fixLaser">Выключить лазерный режим ($32=0)</button></div>`;
+      }
+      const top = Math.max(+cfg.penUpVal || 0, +cfg.penDownVal || 0);
+      if (grbl[30] !== undefined && ['servo', 'servoM5', 'solenoid'].includes(cfg.penPreset) && top > +grbl[30]) {
+        h += `<div class="warn">S = ${top} больше, чем $30 = ${grbl[30]} — GRBL обрежет значение. Уменьшите S или увеличьте $30.</div>`;
+      }
+      el.innerHTML = h;
+      const b = $('fixLaser');
+      if (b) b.onclick = () => { sender.command('$32=0'); setTimeout(() => sender.command('$$'), 400); };
+    };
     sender = new PlotterSender({
+      setting: (n, v) => { grbl[n] = v; if (n === 32 || n === 30) showDiag(); },
       log: logLine,
       state: setState,
       status: ({ state, x, y }) => {

@@ -44,6 +44,7 @@
       this.on.state('idle');
       if (firmware === 'grbl') {
         this.pollTimer = setInterval(() => this.raw('?'), 200);
+        setTimeout(() => this.command('$$'), 2200); // прочитать настройки (проверка лазерного режима для серво)
       } else {
         setTimeout(() => this.command('M154 S1'), 1500); // автоотчёт координат (Marlin 2.1+)
         this.pollTimer = setInterval(() => { if (!this.job || this.job.finished) this.command('M114'); }, 1000);
@@ -101,6 +102,8 @@
         this.on.status({ state: this.job ? 'Run' : 'Idle', x: this.pos[0], y: this.pos[1] });
         if (!/^ok/.test(line)) return;
       }
+      const st = /^\$(\d+)=(-?[\d.]+)/.exec(line);
+      if (st) { if (this.on.setting) this.on.setting(+st[1], st[2]); if (+st[1] >= 30 && +st[1] <= 32) this.on.log(line, 'rx'); return; }
       if (/^ok/i.test(line)) { this.ack(false); return; }
       if (/^error/i.test(line)) { this.on.log(line, 'err'); this.ack(true); return; }
       if (/^ALARM/i.test(line)) { this.on.log(line + ' — печать остановлена', 'err'); this.abortJob('stopped'); return; }
@@ -136,7 +139,7 @@
       if (this.job && !this.job.finished) { this.on.log('Идёт печать — команда не отправлена', 'err'); return; }
       this.manual = (this.manual || 0) + 1;
       this.raw(cmd + '\n');
-      if (!/^M11[4]|^M154/.test(cmd)) this.on.log(cmd, 'tx');
+      if (!/^M11[4]|^M154|^\$\$$/.test(cmd)) this.on.log(cmd, 'tx');
     }
 
     // ---------------- печать ----------------

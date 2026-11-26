@@ -110,21 +110,40 @@
 
     <details open>
       <summary>Ручка и подачи</summary>
-      <label>Механизм ручки
+      <label>Как плоттер поднимает ручку
         <select id="penPreset">
-          <option value="servo">Серво M3 S (GRBL servo)</option>
-          <option value="z">Ось Z (GRBL / Marlin)</option>
-          <option value="m280">Серво M280 (Marlin)</option>
+          <option value="servo">Сервопривод: M3 S… (GRBL с сервой)</option>
+          <option value="servoM5">Сервопривод: M3 S… вниз, M5 вверх</option>
+          <option value="z">Ось Z (мотор или серво на оси Z)</option>
+          <option value="m280">Сервопривод M280 (Marlin)</option>
+          <option value="solenoid">Соленоид / электромагнит: M3 вкл, M5 выкл</option>
           <option value="custom">Свои команды</option>
         </select>
       </label>
-      <label>Поднять ручку <textarea id="penUp" rows="2"></textarea></label>
-      <label>Опустить ручку <textarea id="penDown" rows="2"></textarea></label>
+      <div class="row" id="penVals">
+        <label><span id="penUpLbl">Поднято</span> <input type="number" id="penUpVal" step="1"></label>
+        <label><span id="penDownLbl">Опущено</span> <input type="number" id="penDownVal" step="1"></label>
+      </div>
+      <div class="row">
+        <label>Ждать после подъёма/опускания, с <input type="number" id="penDelay" step="0.05" min="0"></label>
+        <label id="penExtraWrap"><span id="penExtraLbl">Подача Z, мм/мин</span> <input type="number" id="penExtra" step="1"></label>
+      </div>
+      <div class="bar">
+        <button id="penTestUp" type="button">▲ Проверить: поднять</button>
+        <button id="penTestDown" type="button">▼ Проверить: опустить</button>
+      </div>
+      <p class="hint" id="penHint">Подключите плоттер (справа «Подключить»), меняйте числа и жмите «Проверить», пока ручка не будет подниматься и опускаться как надо.</p>
+      <div id="grblDiag"></div>
+      <details class="sub">
+        <summary>Команды, которые получатся</summary>
+        <label>Поднять ручку <textarea id="penUp" rows="2"></textarea></label>
+        <label>Опустить ручку <textarea id="penDown" rows="2"></textarea></label>
+        <p class="hint">Можно исправить вручную — тогда режим станет «Свои команды».</p>
+      </details>
       <div class="row">
         <label>Подача письма, мм/мин <input type="number" id="feedDraw" step="100"></label>
         <label>Подача холостая, мм/мин <input type="number" id="feedTravel" step="100"></label>
       </div>
-      <label>Пауза на подъём/опускание, с (для оценки времени) <input type="number" id="penDelay" step="0.05"></label>
       <label class="chk"><input type="checkbox" id="travelG0"> Холостые перемещения через G0</label>
     </details>
 
