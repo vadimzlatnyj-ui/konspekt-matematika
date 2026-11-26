@@ -656,6 +656,63 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
         queueDraw();
       },
     });
+    // ----- автоподбор способа подъёма ручки -----
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const CANDIDATES = [
+      { name: 'ось Z (Z 5 ↔ Z 0)', method: 'z', a: 5, b: 0, extra: 1000 },
+      { name: 'ось Z в минус (Z 0 ↔ Z −5)', method: 'z', a: 0, b: -5, extra: 1000 },
+      { name: 'серво M3 S (0 ↔ 90)', method: 'servo', a: 0, b: 90 },
+      { name: 'серво M3 S (0 ↔ 255)', method: 'servo', a: 0, b: 255 },
+      { name: 'серво M3 S (0 ↔ 1000)', method: 'servo', a: 0, b: 1000 },
+      { name: 'M5 ↔ M3 S1000 (серво или соленоид)', method: 'servoM5', a: 0, b: 1000 },
+      { name: 'серво M280 (Marlin, 30° ↔ 90°)', method: 'm280', a: 30, b: 90, extra: 0 },
+    ];
+    const candCmd = (c, v, isA) => {
+      switch (c.method) {
+        case 'z': return [`G90`, `G0 Z${v}`];
+        case 'servo': return [`M3 S${v}`];
+        case 'servoM5': return [isA ? 'M5' : `M3 S${v}`];
+        case 'm280': return [`M280 P${c.extra} S${v}`];
+      }
+    };
+    $('penAuto').onclick = async () => {
+      if (!sender || !sender.connected) { alert('Сначала подключите плоттер: справа кнопка «🔌 Подключить».'); return; }
+      if (cfg.fw === 'grbl' && +grbl[32] === 1 &&
+          confirm('В GRBL включён лазерный режим ($32=1) — с ним сервопривод ручки не работает. Выключить его ($32=0)?')) {
+        sender.command('$32=0'); await sleep(500); sender.command('$$'); await sleep(500);
+      }
+      if (!confirm('Сейчас плоттер будет по очереди пробовать разные способы поднять/опустить ручку.\n' +
+        'Каждый раз ручка (если способ подходит) дёрнется вверх-вниз 2 раза, и программа спросит, было ли движение.\n\n' +
+        'Каретка по X/Y двигаться не будет. Начать?')) return;
+      $('penAuto').disabled = true;
+      try {
+        for (const c of CANDIDATES) {
+          if (cfg.fw === 'marlin' && c.method !== 'z' && c.method !== 'm280') continue;
+          if (cfg.fw === 'grbl' && c.method === 'm280') continue;
+          logLine('Пробую: ' + c.name, 'info');
+          for (let i = 0; i < 2; i++) {
+            candCmd(c, c.a, true).forEach(x => sender.command(x)); await sleep(1300);
+            candCmd(c, c.b, false).forEach(x => sender.command(x)); await sleep(1300);
+          }
+          if (!confirm(`Способ: ${c.name}\n\nРучка двигалась вверх-вниз?\nОК — да, двигалась.   Отмена — нет, пробовать следующий.`)) continue;
+          const bDown = confirm('Отлично! Сейчас ручка ОПУЩЕНА (касается бумаги)?\nОК — да, опущена.   Отмена — нет, поднята.');
+          const up = bDown ? c.a : c.b, down = bDown ? c.b : c.a;
+          if (c.method === 'servoM5' && !bDown) {
+            alert('У этого способа «поднято» — это M5. Похоже, у вас наоборот — выберите «Свои команды» и поменяйте местами M5 и M3.');
+          }
+          $('penPreset').value = c.method; updatePenUI(true);
+          $('penUpVal').value = up; $('penDownVal').value = down;
+          if (c.extra !== undefined) $('penExtra').value = c.extra;
+          recompute();
+          cfg.penUp.split('\n').forEach(x => x.trim() && sender.command(x.trim()));
+          logLine(`Найдено: ${c.name}. Поднять: ${cfg.penUp.replace(/\n/g, '; ')} · Опустить: ${cfg.penDown.replace(/\n/g, '; ')}`, 'info');
+          alert('Готово! Способ сохранён, ручка поднята.\n\nЕсли ручка опускается слишком сильно или не дожимает до бумаги — подправьте число «опущено» и проверьте кнопкой «▼ Проверить: опустить».');
+          return;
+        }
+        alert('Ни один способ не сдвинул ручку.\n\nПроверьте, что у ручки есть питание/провод, и пришлите текст из чёрного журнала внизу панели «Плоттер (USB)» — по нему можно определить прошивку.');
+      } finally { $('penAuto').disabled = false; }
+    };
+
     $('connect').onclick = async () => {
       try {
         if (sender.connected) await sender.disconnect();
