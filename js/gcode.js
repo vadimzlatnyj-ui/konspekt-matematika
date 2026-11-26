@@ -136,49 +136,55 @@
 
     const strokes = orderPage(page, cfg).map(s => simplify(s.map(tf), minSeg)).filter(s => s.length >= 2);
 
-    const out = [];
-    const sub = t => t.replace(/\{page\}/g, pageNo).replace(/\{pages\}/g, totalPages);
-    out.push(`; --- Страница ${pageNo} из ${totalPages} ---`);
+    const out = [], meta = [];
+    let cur = -1; // номер текущего штриха
     let pos = [+cfg.startX || 0, +cfg.startY || 0], down = false; // ручка стартует из точки старта
+    // meta[i] — к какому штриху относится строка и опущена ли ручка после неё (для показа печати)
+    const push = (...ls) => { for (const l of ls) { out.push(l); meta.push({ page: pageNo - 1, stroke: cur, pen: down }); } };
+    const sub = t => t.replace(/\{page\}/g, pageNo).replace(/\{pages\}/g, totalPages);
+    push(`; --- Страница ${pageNo} из ${totalPages} ---`);
     let draw = 0, travel = 0, lifts = 0;
     const travelCmd = cfg.travelG0 ? 'G0' : 'G1';
     const penUp = lines(sub(cfg.penUp)), penDown = lines(sub(cfg.penDown));
 
     // Поднимаем ручку в начале страницы
-    out.push(...penUp);
-    for (const s of strokes) {
+    push(...penUp);
+    strokes.forEach((s, si) => {
+      cur = si;
       const a = s[0];
-      const gap = pos ? Math.hypot(a[0] - pos[0], a[1] - pos[1]) : Infinity;
+      const gap = Math.hypot(a[0] - pos[0], a[1] - pos[1]);
       let needF = false;
       if (down && gap <= (cfg.joinDistance || 0)) {
         // следующий штрих начинается рядом — рисуем, не поднимая ручку
-        if (gap > 0) { draw += gap; out.push(`G1 X${f(a[0])} Y${f(a[1])}`); }
+        if (gap > 0) { draw += gap; push(`G1 X${f(a[0])} Y${f(a[1])}`); }
       } else {
-        if (down) { out.push(...penUp); down = false; }
-        if (pos) travel += gap;
-        out.push(`${travelCmd} X${f(a[0])} Y${f(a[1])}${cfg.travelG0 ? '' : ' F' + cfg.feedTravel}`);
-        out.push(...penDown); down = true; lifts++;
+        if (down) { down = false; push(...penUp); }
+        travel += gap;
+        push(`${travelCmd} X${f(a[0])} Y${f(a[1])}${cfg.travelG0 ? '' : ' F' + cfg.feedTravel}`);
+        down = true; push(...penDown); lifts++;
         needF = true;
       }
       for (let i = 1; i < s.length; i++) {
         const p = s[i];
         draw += Math.hypot(p[0] - s[i - 1][0], p[1] - s[i - 1][1]);
-        out.push(`G1 X${f(p[0])} Y${f(p[1])}${needF ? ' F' + cfg.feedDraw : ''}`);
+        push(`G1 X${f(p[0])} Y${f(p[1])}${needF ? ' F' + cfg.feedDraw : ''}`);
         needF = false;
       }
       pos = s[s.length - 1];
-    }
-    if (down) out.push(...penUp);
+    });
+    cur = strokes.length;
+    if (down) { down = false; push(...penUp); }
 
     const time = draw / Math.max(1, cfg.feedDraw) + travel / Math.max(1, cfg.feedTravel) + lifts * 2 * (cfg.penDelay || 0) / 60;
-    return { code: out, stats: { draw, travel, lifts, time, strokes: strokes.length }, machineStrokes: strokes };
+    return { code: out, meta, stats: { draw, travel, lifts, time, strokes: strokes.length }, machineStrokes: strokes };
   }
 
   /** Полная программа: несколько страниц с паузами между ними */
   function program(pages, cfg, which) {
     const total = pages.length;
     const list = which == null ? pages.map((p, i) => i) : [which];
-    const out = [];
+    const out = [], meta = [];
+    const none = n => { while (meta.length < n) meta.push({ page: -1, stroke: -1, pen: false }); };
     const hdr = t => lines(t.replace(/\{startX\}/g, +cfg.startX || 0).replace(/\{startY\}/g, +cfg.startY || 0).replace(/\{pages\}/g, total).replace(/\{page\}/g, list.length === 1 ? list[0] + 1 : 1));
     out.push('; Сгенерировано: Плоттер-конспект (формулы в G-code)');
     out.push(`; Лист ${cfg.pageW}x${cfg.pageH} мм, смещение X${cfg.offsetX} Y${cfg.offsetY}, поворот ${cfg.rotation}°`);
@@ -187,14 +193,16 @@
     const stats = { draw: 0, travel: 0, lifts: 0, time: 0, strokes: 0 };
     list.forEach((idx, k) => {
       const r = pageGcode(pages[idx], cfg, idx + 1, total);
-      out.push(...r.code);
+      none(out.length);
+      out.push(...r.code); meta.push(...r.meta);
       for (const key in stats) stats[key] += r.stats[key];
       if (k < list.length - 1) {
         out.push(...lines((cfg.betweenPages || '').replace(/\{startX\}/g, +cfg.startX || 0).replace(/\{startY\}/g, +cfg.startY || 0).replace(/\{page\}/g, idx + 1).replace(/\{next\}/g, idx + 2).replace(/\{pages\}/g, total)));
       }
     });
     out.push(...hdr(cfg.footer));
-    return { text: out.join('\n') + '\n', stats };
+    none(out.length);
+    return { text: out.join('\n') + '\n', lines: out, meta, stats };
   }
 
   root.PlotGcode = { pageGcode, program, makeTransform, simplify, optimizeOrder, orderPage, startOnPage };

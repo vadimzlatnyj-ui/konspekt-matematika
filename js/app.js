@@ -110,7 +110,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
   /** Строит путь ручки: старт → холостой ход → штрих → … в координатах листа или станка */
   function buildPath(strokes, start) {
     const segs = [];
-    let t = 0, cur = start;
+    let t = 0, cur = start, n = 0;
     const vd = Math.max(1, cfg.feedDraw) / 60, vt = Math.max(1, cfg.feedTravel) / 60; // мм/с
     const len = pts => { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; };
     for (const s of strokes) {
@@ -119,7 +119,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       const dt = len(tr) / vt + (cfg.penDelay || 0) * 2;
       segs.push({ draw: false, pts: tr, t0: t, t1: t + dt }); t += dt;
       const dd = len(s) / vd;
-      segs.push({ draw: true, pts: s, t0: t, t1: t + dd }); t += dd;
+      segs.push({ draw: true, pts: s, t0: t, t1: t + dd, stroke: n++ }); t += dd;
       cur = s[s.length - 1];
     }
     return { segs, total: t, start };
@@ -155,11 +155,13 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       `опусканий ручки ${st.lifts}, ≈ ${fmtT(st.time)}, строк G-code ${g.text.split('\n').length - 1}.<br>` +
       `Все ${n} стр.: ≈ ${fmtT(all.stats.time)}.`;
     $('gcodeOut').value = g.text.length > 400000 ? g.text.slice(0, 400000) + '\n; … (обрезано в окне, файл полный)' : g.text;
+    // путь строим из тех же штрихов, что идут в G-code, — номера штрихов совпадают с печатью
+    const pg = PlotGcode.pageGcode(page, cfg, pageIdx + 1, n);
     if ($('view').value === 'bed') {
-      const pg = PlotGcode.pageGcode(page, cfg, pageIdx + 1, n);
       path = buildPath(pg.machineStrokes, [+cfg.startX || 0, +cfg.startY || 0]);
     } else {
-      path = buildPath(PlotGcode.orderPage(page, cfg), PlotGcode.startOnPage(cfg));
+      const inv = PlotGcode.makeTransform(cfg).inverse;
+      path = buildPath(pg.machineStrokes.map(st => st.map(inv)), PlotGcode.startOnPage(cfg));
     }
     sim.t = Infinity;
     $('simPos').value = 1000;
@@ -175,6 +177,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
 
   /** Рисует путь ручки до момента sim.t, маркеры старта и положения ручки */
   function drawPath(ctx, k, opts) {
+    if (live.active && live.page === pageIdx) { drawLive(ctx, k, opts); return; }
     const upto = sim.t;
     const simMode = upto !== Infinity;
     const showTravel = $('showTravel').checked || simMode;
@@ -232,6 +235,38 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     }
   }
 
+  /** Во время печати: напечатанное — тёмным, остальное — серым, ручка — по координатам от плоттера */
+  function drawLive(ctx, k, opts) {
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const done of [false, true]) {
+      ctx.strokeStyle = done ? '#1e3a8a' : '#cbd5e1';
+      ctx.lineWidth = Math.max(0.3, (done ? 1.2 : 1) / k);
+      ctx.beginPath();
+      for (const sg of path.segs) {
+        if (!sg.draw || (sg.stroke < live.stroke) !== done) continue;
+        ctx.moveTo(sg.pts[0][0], sg.pts[0][1]);
+        for (let i = 1; i < sg.pts.length; i++) ctx.lineTo(sg.pts[i][0], sg.pts[i][1]);
+      }
+      ctx.stroke();
+    }
+    const R = Math.max(1.2, 6 / k);
+    const [sx, sy] = opts.clamp(path.start);
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 1.2 / k;
+    ctx.beginPath(); ctx.arc(sx, sy, R * 0.8, 0, 2 * Math.PI); ctx.stroke();
+    if (live.pos) {
+      const [px, py] = opts.fromMachine(live.pos);
+      const down = live.pen;
+      // перекрестие, чтобы ручку было видно издалека
+      ctx.strokeStyle = down ? 'rgba(37,99,235,.5)' : 'rgba(220,38,38,.5)'; ctx.lineWidth = 0.8 / k;
+      ctx.beginPath(); ctx.moveTo(px - R * 3, py); ctx.lineTo(px + R * 3, py); ctx.moveTo(px, py - R * 3); ctx.lineTo(px, py + R * 3); ctx.stroke();
+      ctx.lineWidth = 2.2 / k;
+      ctx.strokeStyle = down ? '#2563eb' : '#dc2626';
+      ctx.fillStyle = down ? 'rgba(37,99,235,.35)' : 'rgba(220,38,38,.15)';
+      ctx.beginPath(); ctx.arc(px, py, R * (down ? 0.9 : 1.4), 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+      opts.text(`ручка ${down ? 'пишет' : 'поднята'}`, px, py, down ? '#1d4ed8' : '#b91c1c');
+    }
+  }
+
   // ---------- холст ----------
   function setupCanvas(wmm, hmm) {
     const wrap = $('canvasWrap');
@@ -281,7 +316,9 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       });
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
+    const inv = PlotGcode.makeTransform(cfg).inverse;
     drawPath(ctx, k, {
+      fromMachine: inv,
       clamp: ([x, y]) => [Math.min(W - 2, Math.max(2, x)), Math.min(H - 2, Math.max(2, y))],
       text: (t, x, y, color) => {
         ctx.fillStyle = color; ctx.font = `bold ${Math.max(2.5, 11 / k)}px sans-serif`;
@@ -324,7 +361,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       ctx.fillStyle = color; ctx.font = `bold ${Math.max(3, 11 / k)}px sans-serif`;
       ctx.fillText(t, 2, -2); ctx.restore();
     };
-    drawPath(ctx, k, { clamp: p => p, text, lw: 1 });
+    drawPath(ctx, k, { clamp: p => p, fromMachine: p => p, text, lw: 1 });
     text('0,0', 24, -1, '#475569');
     text('оранжевая линия — верх листа', 4, BH - 8, '#b45309');
   }
@@ -419,8 +456,105 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     });
   }
 
+  // ---------- печать по USB ----------
+  const live = { active: false, page: -1, stroke: -1, pen: false, pos: null };
+  let sender = null, drawQueued = false;
+  const queueDraw = () => { if (drawQueued) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; if (path) draw(); }); };
+
+  function logLine(text, kind) {
+    const el = $('serialLog');
+    const div = document.createElement('div');
+    div.className = kind || '';
+    div.textContent = (kind === 'tx' ? '→ ' : kind === 'rx' ? '← ' : '') + text;
+    el.appendChild(div);
+    while (el.childNodes.length > 300) el.removeChild(el.firstChild);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function setState(name, info) {
+    const st = $('connState');
+    const names = {
+      disconnected: ['не подключён', 'off'], idle: ['подключён', 'on'], printing: ['печать…', 'busy'],
+      paused: ['пауза', 'warn'], waitPage: ['смените лист и нажмите «Продолжить»', 'warn'],
+      done: ['готово ✓', 'on'], stopped: ['остановлено', 'warn'],
+    };
+    const [txt, cls] = names[name] || [name, 'on'];
+    st.textContent = txt; st.className = 'pill ' + cls;
+    const conn = name !== 'disconnected';
+    const busy = name === 'printing' || name === 'paused' || name === 'waitPage';
+    $('connect').textContent = conn ? 'Отключить' : '🔌 Подключить';
+    $('printPage').disabled = $('printAll').disabled = !conn || busy;
+    $('pauseBtn').disabled = name !== 'printing';
+    $('resumeBtn').disabled = !(name === 'paused' || name === 'waitPage');
+    $('stopBtn').disabled = !busy;
+    ['jogUp', 'jogDown', 'jogStart'].forEach(id => { $(id).disabled = !conn || busy; });
+    // во время печати нельзя менять текст и настройки — иначе картинка разойдётся с тем, что печатается
+    document.querySelectorAll('#settings input, #settings select, #settings textarea, #text, #prev, #next').forEach(el => { el.disabled = busy; });
+    $('fw').disabled = $('baud').disabled = conn;
+    live.active = busy || (live.active && name === 'done');
+    if (name === 'waitPage') logLine(`Страница ${live.page + cfg.firstPage} готова. Переверните/смените лист, положите тетрадь на то же место и нажмите «Продолжить».`, 'info');
+    queueDraw();
+  }
+
+  function initSerial() {
+    if (!window.PlotterSender || !PlotterSender.supported()) {
+      $('serialNote').innerHTML = '⚠ Этот браузер не умеет работать с USB-портом. Откройте приложение в <b>Chrome</b>, <b>Edge</b> или <b>Яндекс.Браузере</b> на компьютере. ' +
+        'Либо скачайте G-code и печатайте своей программой (тогда положение ручки здесь не видно).';
+      $('connect').disabled = true;
+      return;
+    }
+    sender = new PlotterSender({
+      log: logLine,
+      state: setState,
+      status: ({ state, x, y }) => {
+        if (x != null) live.pos = [x, y];
+        $('liveInfo').textContent = `Станок: ${state}` + (x != null ? `   X ${x.toFixed(2)}  Y ${y.toFixed(2)}` : '') +
+          (live.active ? `   ·  ручка ${live.pen ? 'пишет' : 'поднята'}` : '');
+        if (live.active || $('view').value === 'bed') queueDraw();
+      },
+      progress: ({ acked, total, meta }) => {
+        $('printProg').value = Math.round(acked / total * 1000);
+        if (meta && meta.page >= 0) {
+          live.stroke = meta.stroke; live.pen = meta.pen;
+          if (meta.page !== live.page || meta.page !== pageIdx) {
+            live.page = meta.page;
+            if (pageIdx !== live.page) { pageIdx = live.page; render(); }
+          }
+        }
+        queueDraw();
+      },
+    });
+    $('connect').onclick = async () => {
+      try {
+        if (sender.connected) await sender.disconnect();
+        else { await sender.connect($('baud').value, $('fw').value); }
+      } catch (e) {
+        if (e.name !== 'NotFoundError') logLine('Не удалось подключиться: ' + e.message, 'err');
+        setState('disconnected');
+      }
+    };
+    const startPrint = which => {
+      const prog = PlotGcode.program(result.pages, cfg, which);
+      live.active = true; live.page = which == null ? 0 : which; live.stroke = -1; live.pen = false;
+      if (pageIdx !== live.page) { pageIdx = live.page; render(); }
+      $('printProg').value = 0;
+      sender.start(prog.lines, prog.meta);
+    };
+    $('printPage').onclick = () => startPrint(pageIdx);
+    $('printAll').onclick = () => startPrint(null);
+    $('pauseBtn').onclick = () => sender.pause();
+    $('resumeBtn').onclick = () => sender.resume();
+    $('stopBtn').onclick = () => sender.stop(cfg.penUp.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean));
+    const cmds = t => t.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean).forEach(c => sender.command(c));
+    $('jogUp').onclick = () => cmds(cfg.penUp);
+    $('jogDown').onclick = () => cmds(cfg.penDown);
+    $('jogStart').onclick = () => cmds(`${cfg.penUp}\nG90\nG0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`);
+    setState('disconnected');
+  }
+
   fillForm();
   $('text').value = localStorage.getItem('plotterText') ?? SAMPLE;
   bind();
+  initSerial();
   recompute();
 })();

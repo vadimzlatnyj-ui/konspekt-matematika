@@ -198,6 +198,37 @@
       <button id="dlEach" type="button">Каждую страницу отдельно</button>
       <button id="copyPage" type="button">Копировать G-code страницы</button>
     </div>
+    <details id="printPanel" open>
+      <summary>Печать на плоттер по USB — ручка в реальном времени</summary>
+      <p class="hint" id="serialNote">Плоттер подключается к компьютеру USB-кабелем, печать идёт прямо отсюда, а на листе видно, где сейчас ручка.
+        Работает в Chrome, Edge или Яндекс.Браузере на компьютере. Программу-отправитель (UGS, Candle…) при этом закройте — порт может занимать только одна программа.</p>
+      <div class="bar">
+        <select id="fw" title="Прошивка плоттера">
+          <option value="grbl">GRBL</option>
+          <option value="marlin">Marlin</option>
+        </select>
+        <select id="baud" title="Скорость порта">
+          <option>115200</option><option>250000</option><option>57600</option><option>38400</option><option>9600</option>
+        </select>
+        <button id="connect" type="button">🔌 Подключить</button>
+        <span id="connState" class="pill off">не подключён</span>
+      </div>
+      <div class="bar">
+        <button id="printPage" type="button" class="primary" disabled>▶ Печатать эту страницу</button>
+        <button id="printAll" type="button" disabled>▶ Печатать все</button>
+        <button id="pauseBtn" type="button" disabled>⏸ Пауза</button>
+        <button id="resumeBtn" type="button" disabled>▶ Продолжить</button>
+        <button id="stopBtn" type="button" class="danger" disabled>⏹ Стоп</button>
+      </div>
+      <div class="bar">
+        <button id="jogUp" type="button" disabled>Поднять ручку</button>
+        <button id="jogDown" type="button" disabled>Опустить ручку</button>
+        <button id="jogStart" type="button" disabled>Ручку в старт</button>
+      </div>
+      <div id="liveInfo"></div>
+      <progress id="printProg" max="1000" value="0"></progress>
+      <pre id="serialLog"></pre>
+    </details>
     <details>
       <summary>G-code текущей страницы</summary>
       <textarea id="gcodeOut" readonly rows="14" spellcheck="false"></textarea>
@@ -210,6 +241,7 @@
 <script src="js/graph.js"></script>
 <script src="js/layout.js"></script>
 <script src="js/gcode.js"></script>
+<script src="js/serial.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
