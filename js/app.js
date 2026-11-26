@@ -10,7 +10,7 @@
   const PEN_METHODS = {
     servo: { up: 90, down: 30, lbl: ['S — поднято', 'S — опущено'] },
     servoM5: { up: 0, down: 30, lbl: ['(поднято = M5)', 'S — опущено'], noUp: true },
-    z: { up: 5, down: 0, extra: 1000, lbl: ['Z — поднято, мм', 'Z — опущено, мм'], extraLbl: 'Подача Z, мм/мин' },
+    z: { up: 3, down: 0, extra: 600, lbl: ['Z — поднято, мм', 'Z — опущено, мм'], extraLbl: 'Подача Z, мм/мин' },
     m280: { up: 90, down: 30, extra: 0, lbl: ['Угол — поднято, °', 'Угол — опущено, °'], extraLbl: 'Номер серво (P)' },
     solenoid: { up: 0, down: 1000, lbl: ['(поднято = M5)', 'S — сила, вкл'], noUp: true },
   };
@@ -25,7 +25,7 @@
     switch (m) {
       case 'servo': return { up: `M3 S${u}${wait}`, down: `M3 S${d}${wait}` };
       case 'servoM5': return { up: `M5${wait}`, down: `M3 S${d}${wait}` };
-      case 'z': return { up: `G0 Z${u}`, down: `G1 Z${d} F${x || 1000}` };
+      case 'z': return { up: `G1 Z${u} F${x || 600}`, down: `G1 Z${d} F${x || 600}` };
       case 'm280': return { up: `M280 P${x || 0} S${u}${wait}`, down: `M280 P${x || 0} S${d}${wait}` };
       case 'solenoid': return { up: `M5${wait}`, down: `M3 S${d}${wait}` };
     }
@@ -34,6 +34,7 @@
   function updatePenUI(resetValues) {
     const m = PEN_METHODS[$('penPreset').value];
     $('penVals').style.display = m ? '' : 'none';
+    $('zHint').style.display = $('penPreset').value === 'z' ? '' : 'none';
     $('penExtraWrap').style.visibility = m && m.extraLbl ? 'visible' : 'hidden';
     if (!m) { $('penUp').readOnly = $('penDown').readOnly = false; return; }
     $('penUpLbl').textContent = m.lbl[0]; $('penDownLbl').textContent = m.lbl[1];
@@ -108,6 +109,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
   }
   function readForm() {
     for (const k of NUM) { const v = parseFloat($(k).value); if (!isNaN(v)) cfg[k] = v; }
+    cfg.feedDraw = Math.max(10, Math.min(10000, cfg.feedDraw));
     for (const k of BOOL) cfg[k] = $(k).checked;
     for (const k of STR) { if (k === 'fontSel' && !$(k).value) continue; cfg[k] = $(k).value; }
     if (PEN_METHODS[cfg.penPreset]) {
@@ -686,8 +688,8 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     // ----- автоподбор способа подъёма ручки -----
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const CANDIDATES = [
-      { name: 'ось Z (Z 5 ↔ Z 0)', method: 'z', a: 5, b: 0, extra: 1000 },
-      { name: 'ось Z в минус (Z 0 ↔ Z −5)', method: 'z', a: 0, b: -5, extra: 1000 },
+      { name: 'ось Z (Z 3 ↔ Z 0)', method: 'z', a: 3, b: 0, extra: 600 },
+      { name: 'ось Z в минус (Z 0 ↔ Z −3)', method: 'z', a: 0, b: -3, extra: 600 },
       { name: 'серво M3 S (0 ↔ 90)', method: 'servo', a: 0, b: 90 },
       { name: 'серво M3 S (0 ↔ 255)', method: 'servo', a: 0, b: 255 },
       { name: 'серво M3 S (0 ↔ 1000)', method: 'servo', a: 0, b: 1000 },
@@ -696,7 +698,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     ];
     const candCmd = (c, v, isA) => {
       switch (c.method) {
-        case 'z': return [`G90`, `G0 Z${v}`];
+        case 'z': return [`G90`, `G1 Z${v} F${c.extra}`];
         case 'servo': return [`M3 S${v}`];
         case 'servoM5': return [isA ? 'M5' : `M3 S${v}`];
         case 'm280': return [`M280 P${c.extra} S${v}`];
@@ -750,8 +752,6 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
         }
         else {
           await sender.connect($('baud').value, $('fw').value);
-          const pct = +$('speed').value || 100;
-          if (pct !== 100) setTimeout(() => sender.setSpeed(pct), 2600);
         }
       } catch (e) {
         if (e.name !== 'NotFoundError') logLine('Не удалось подключиться: ' + e.message, 'err');
@@ -764,8 +764,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       if (pageIdx !== live.page) { pageIdx = live.page; render(); }
       $('printProg').value = 0;
       sender.start(prog.lines, prog.meta);
-      const pct = +$('speed').value || 100;
-      if (pct !== 100) sender.setSpeed(pct);
+      sender.setFeed(cfg.feedDraw);
     };
     $('printPage').onclick = () => startPrint(pageIdx);
     $('printAll').onclick = () => startPrint(null);
@@ -774,24 +773,25 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     $('resumeBtn').onclick = () => sender.resume(lns(cfg.penDown));
     $('stopBtn').onclick = () => sender.stop(afterStop());
 
-    // ----- скорость печати -----
-    const showSpeed = pct => {
-      $('speed').value = pct;
-      $('spdVal').textContent = `${pct} % (письмо ≈ ${Math.round(cfg.feedDraw * pct / 100)} мм/мин)`;
-    };
+    // ----- скорость письма (мм/мин, до 10000) — это то же значение, что «Подача письма» в настройках -----
+    const showFeed = v => { $('speed').value = v; $('spdNum').value = v; };
     let spdTimer = null;
-    const applySpeed = pct => {
-      pct = Math.max(10, Math.min(200, pct));
-      showSpeed(pct);
-      localStorage.setItem('plotterSpeed', pct);
+    const applyFeed = (v, fromNumber) => {
+      v = Math.max(10, Math.min(10000, Math.round(+v || 0)));
+      $('spdNum').value = v;
+      $('speed').value = v;
+      if (sender.connected) sender.setFeed(v);
+      cfg.feedDraw = v; $('feedDraw').value = v;
       clearTimeout(spdTimer);
-      spdTimer = setTimeout(() => { if (sender.connected) sender.setSpeed(pct); }, 150);
+      // пока идёт печать, лист не пересчитываем (настройки заблокированы); иначе — обновим оценку времени
+      spdTimer = setTimeout(() => { save(); if (!(sender.job && !sender.job.finished)) schedule(); }, 300);
     };
-    $('speed').oninput = () => applySpeed(+$('speed').value);
-    $('spdMinus').onclick = () => applySpeed(+$('speed').value - 10);
-    $('spdPlus').onclick = () => applySpeed(+$('speed').value + 10);
-    $('spdReset').onclick = () => applySpeed(100);
-    showSpeed(+localStorage.getItem('plotterSpeed') || 100);
+    $('speed').oninput = () => applyFeed($('speed').value);
+    $('spdNum').onchange = () => applyFeed($('spdNum').value, true);
+    $('spdMinus').onclick = () => applyFeed(+$('spdNum').value - 250);
+    $('spdPlus').onclick = () => applyFeed(+$('spdNum').value + 250);
+    $('feedDraw').addEventListener('input', () => showFeed(Math.min(10000, +$('feedDraw').value || 0)));
+    showFeed(cfg.feedDraw);
     const cmds = t => t.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean).forEach(c => sender.command(c));
     $('jogUp').onclick = () => cmds(cfg.penUp);
     $('jogDown').onclick = () => cmds(cfg.penDown);

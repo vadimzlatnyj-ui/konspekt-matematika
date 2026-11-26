@@ -146,6 +146,9 @@
         <button id="penTestDown" type="button">▼ Проверить: опустить</button>
       </div>
       <p class="hint" id="penHint">Подключите плоттер (справа «Подключить»), меняйте числа и жмите «Проверить», пока ручка не будет подниматься и опускаться как надо.</p>
+      <p class="hint warnhint" id="zHint" style="display:none">⚠ Если со временем ручка поднимается всё выше и пишет по воздуху — мотор Z пропускает шаги
+        (упирается ручкой в бумагу и проскальзывает). Поставьте «опущено» так, чтобы ручка <b>только касалась</b> бумаги
+        (проверьте кнопкой «▼»), уменьшите «поднято» до 2–3 мм и подачу Z до 300–600.</p>
       <div id="grblDiag"></div>
       <details class="sub">
         <summary>Команды, которые получатся</summary>
@@ -154,7 +157,7 @@
         <p class="hint">Можно исправить вручную — тогда режим станет «Свои команды».</p>
       </details>
       <div class="row">
-        <label>Подача письма, мм/мин <input type="number" id="feedDraw" step="100"></label>
+        <label>Подача письма, мм/мин <input type="number" id="feedDraw" step="100" min="10" max="10000"></label>
         <label>Подача холостая, мм/мин <input type="number" id="feedTravel" step="100"></label>
       </div>
       <label class="chk"><input type="checkbox" id="travelG0"> Холостые перемещения через G0</label>
@@ -246,13 +249,13 @@
         <button id="stopBtn" type="button" class="danger" disabled>⏹ Стоп</button>
       </div>
       <div class="bar speed">
-        <span>Скорость:</span>
-        <button id="spdMinus" type="button" title="Медленнее на 10 %">−</button>
-        <input type="range" id="speed" min="10" max="200" step="5" value="100">
-        <button id="spdPlus" type="button" title="Быстрее на 10 %">+</button>
-        <b id="spdVal">100 %</b>
-        <button id="spdReset" type="button" title="Обычная скорость">100 %</button>
+        <span>Скорость письма:</span>
+        <button id="spdMinus" type="button" title="Медленнее на 250 мм/мин">−</button>
+        <input type="range" id="speed" min="100" max="10000" step="50">
+        <button id="spdPlus" type="button" title="Быстрее на 250 мм/мин">+</button>
+        <input type="number" id="spdNum" min="10" max="10000" step="50" title="мм/мин, не больше 10000"> мм/мин
       </div>
+      <p class="hint">Меняется сразу, в том числе во время печати. Холостые переезды и подъём ручки идут со своей скоростью.</p>
       <label class="chk"><input type="checkbox" id="parkOnStop" checked> После «Стоп» — поднять ручку и вернуть в точку старта</label>
       <div class="bar">
         <button id="jogUp" type="button" disabled>Поднять ручку</button>

@@ -45,7 +45,7 @@
       this.on.state('idle');
       if (firmware === 'grbl') {
         this.pollTimer = setInterval(() => this.raw('?'), 200);
-        setTimeout(() => this.command('$$'), 2200); // прочитать настройки (проверка лазерного режима для серво)
+        setTimeout(() => { this.resetOverride(); this.command('$$'); }, 2200); // настройки (проверка лазерного режима для серво)
       } else {
         setTimeout(() => this.command('M154 S1'), 1500); // автоотчёт координат (Marlin 2.1+)
         this.pollTimer = setInterval(() => { if (!this.job || this.job.finished) this.command('M114'); }, 1000);
@@ -193,7 +193,12 @@
         return;
       }
       j.inflight = { item };
-      this.raw(item.text + '\n');
+      let text = item.text;
+      // линия рисования: G1 с X/Y и без Z — ставим текущую скорость письма
+      if (this.drawFeed && /^G0?1(?!\d)/i.test(text) && /[XY]/i.test(text) && !/Z/i.test(text)) {
+        text = text.replace(/\s*F-?[\d.]+/i, '') + ' F' + this.drawFeed;
+      }
+      this.raw(text + '\n');
     }
 
     ack(isError) {
@@ -259,27 +264,19 @@
       return this.writer.write(new Uint8Array(arr)).catch(e => this.on.log('Ошибка записи: ' + e.message, 'err'));
     }
 
-    /** Скорость печати в процентах (10…200). Действует сразу, в том числе во время печати. */
-    async setSpeed(pct) {
-      pct = Math.max(10, Math.min(200, Math.round(pct)));
-      if (!this.writer) return;
-      if (this.firmware === 'grbl') {
-        const bytes = [0x90];                   // сброс к 100 %
-        let d = pct - 100;
-        while (d >= 10) { bytes.push(0x91); d -= 10; }
-        while (d <= -10) { bytes.push(0x92); d += 10; }
-        while (d > 0) { bytes.push(0x93); d--; }
-        while (d < 0) { bytes.push(0x94); d++; }
-        await this.rawBytes(bytes);
-      } else {
-        const cmd = `M220 S${pct}`;
-        if (this.job && !this.job.finished) {
-          // в Marlin — вставляем команду следующей в очередь программы
-          this.job.send.splice(this.job.idx + (this.job.inflight ? 1 : 0), 0, { text: cmd, src: -1 });
-          this.job.total++;
-        } else this.command(cmd);
-      }
-      this.speed = pct;
+    /**
+     * Скорость письма в мм/мин (10…10000). Подставляется в каждую строку рисования (G1 X/Y),
+     * которая ещё не отправлена, — меняется на ходу. Холостые ходы (G0) и движения оси Z не трогаются.
+     */
+    setFeed(v) {
+      this.drawFeed = Math.max(10, Math.min(10000, Math.round(+v || 0))) || null;
+      return this.drawFeed;
+    }
+
+    /** Сбросить старое процентное переопределение скорости (могло остаться от прежней версии) */
+    resetOverride() {
+      if (this.firmware === 'grbl') return this.rawBytes([0x90]);
+      this.command('M220 S100');
     }
 
     /**
@@ -298,7 +295,6 @@
         this.manual = 0;
         this.command('$X');                              // снять блокировку, если GRBL её поставил
         await sleep(200);
-        if (this.speed && this.speed !== 100) await this.setSpeed(this.speed);
       } else {
         this.manual = 0;
         this.command('M410');                            // быстрая остановка Marlin
