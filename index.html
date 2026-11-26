@@ -71,8 +71,26 @@
         <label>Рабочее поле X, мм <input type="number" id="bedW" step="1" min="10"></label>
         <label>Рабочее поле Y, мм <input type="number" id="bedH" step="1" min="10"></label>
       </div>
+      <label>Ноль плоттера (точка X0 Y0) — в каком углу поля
+        <select id="originCorner">
+          <option value="bl">↙ левый нижний (ближний к вам слева)</option>
+          <option value="tl">↖ левый верхний (дальний слева)</option>
+          <option value="br">↘ правый нижний (ближний справа)</option>
+          <option value="tr">↗ правый верхний (дальний справа)</option>
+        </select>
+      </label>
+      <p class="hint">«Верх» — дальний от вас край плоттера, как на виде «Стол станка». От этого угла считаются все координаты.</p>
       <button id="bedFromPlotter" type="button">⬇ Взять размер из плоттера (GRBL $130/$131)</button>
       <p class="hint">Сколько миллиметров ручка может проехать по X и Y. Перед печатью программа проверит, что всё помещается.</p>
+      <label>🏠 Точка дома (отсюда начинается печать и сюда возвращается ручка)
+        <select id="homeCorner">
+          <option value="tl">↖ левый верхний угол поля</option>
+          <option value="tr">↗ правый верхний угол поля</option>
+          <option value="bl">↙ левый нижний угол поля</option>
+          <option value="br">↘ правый нижний угол поля</option>
+          <option value="custom">своя точка (координаты ниже)</option>
+        </select>
+      </label>
       <div class="row">
         <label>🏠 Дом X, мм <input type="number" id="startX" step="0.5"></label>
         <label>🏠 Дом Y, мм <input type="number" id="startY" step="0.5"></label>
@@ -81,20 +99,22 @@
         Удобно задать кнопками справа: подвезите ручку стрелками и нажмите «📍 Запомнить: дом здесь».</p>
       <p class="hint" style="margin-top:8px"><b>Где лежит тетрадь:</b></p>
       <div class="row">
-        <label>X угла, мм <input type="number" id="offsetX" step="0.5"></label>
-        <label>Y угла, мм <input type="number" id="offsetY" step="0.5"></label>
+        <label>Отступ от нуля по X, мм <input type="number" id="offsetX" step="0.5"></label>
+        <label>Отступ от нуля по Y, мм <input type="number" id="offsetY" step="0.5"></label>
       </div>
-      <p class="hint">Координаты левого нижнего угла листа (по габариту после поворота) в системе станка.</p>
+      <p class="hint">Расстояние от угла нуля плоттера до ближайшего угла тетради (измерьте линейкой).</p>
       <label>Поворот листа
         <select id="rotation">
-          <option value="0">0° (верх листа → +Y)</option>
-          <option value="90">90° (верх листа → −X)</option>
-          <option value="180">180° (верх листа → −Y)</option>
-          <option value="270">270° (верх листа → +X)</option>
+          <option value="0">0° — верх листа к дальнему краю плоттера</option>
+          <option value="90">90° — верх листа влево</option>
+          <option value="180">180° — верх листа к вам</option>
+          <option value="270">270° — верх листа вправо</option>
         </select>
       </label>
-      <label class="chk"><input type="checkbox" id="mirrorX"> Отразить по X</label>
-      <label class="chk"><input type="checkbox" id="mirrorY"> Отразить по Y (ось Y станка направлена к себе)</label>
+      <details class="sub"><summary>Если текст получается зеркальным</summary>
+        <label class="chk"><input type="checkbox" id="mirrorX"> Отразить по X</label>
+        <label class="chk"><input type="checkbox" id="mirrorY"> Отразить по Y</label>
+      </details>
     </details>
 
     <details open>

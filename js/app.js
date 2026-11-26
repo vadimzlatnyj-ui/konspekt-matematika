@@ -61,6 +61,7 @@
     footer: 'G0 X{startX} Y{startY}\nM2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
     spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMath: false,
+    originCorner: 'bl', homeCorner: 'tl',
   };
 
   const SAMPLE = String.raw`Демонстрация: формулы и графики
@@ -96,7 +97,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
     'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra'];
   const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'fontMath'];
-  const STR = ['fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+  const STR = ['originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };
@@ -128,6 +129,13 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       cfg.penUp = pc.up; cfg.penDown = pc.down;
       $('penUp').value = pc.up; $('penDown').value = pc.down;
     }
+    // точка дома в углу поля — пересчитываем после чтения всех настроек (угол нуля, размер поля)
+    if (cfg.homeCorner && cfg.homeCorner !== 'custom') {
+      const [hx, hy] = cornerMachine(cfg.homeCorner);
+      cfg.startX = hx; cfg.startY = hy;
+      $('startX').value = hx; $('startY').value = hy;
+    }
+    $('startX').readOnly = $('startY').readOnly = cfg.homeCorner !== 'custom';
   }
 
   // ---------- пересчёт ----------
@@ -137,7 +145,18 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   // ---------- листы: одна страница или разворот из двух ----------
   let sheets = [];
   /** Настройки для G-code: при развороте «лист» — это обе страницы + перегородка */
-  function G() { return cfg.spread ? Object.assign({}, cfg, { pageW: 2 * cfg.pageW + (+cfg.spineGap || 0) }) : cfg; }
+  // Угол нуля плоттера: если ноль справа/сверху — ось идёт от него внутрь поля, т.е. зеркалим относительно тетради
+  const originRight = () => cfg.originCorner === 'br' || cfg.originCorner === 'tr';
+  const originTop = () => cfg.originCorner === 'tl' || cfg.originCorner === 'tr';
+  function G() {
+    const o = { mirrorX: !!cfg.mirrorX !== originRight(), mirrorY: !!cfg.mirrorY !== originTop() };
+    if (cfg.spread) o.pageW = 2 * cfg.pageW + (+cfg.spineGap || 0);
+    return Object.assign({}, cfg, o);
+  }
+  /** Точка поля (вид сверху: X вправо, Y к дальнему краю, от левого ближнего угла) → координаты плоттера */
+  const fieldToMachine = ([fx, fy]) => [originRight() ? cfg.bedW - fx : fx, originTop() ? cfg.bedH - fy : fy];
+  /** Угол поля → координаты плоттера */
+  const cornerMachine = c => fieldToMachine([c[1] === 'r' ? cfg.bedW : 0, c[0] === 't' ? cfg.bedH : 0]);
 
   function buildSheets(pages) {
     const W = cfg.pageW, gap = +cfg.spineGap || 0;
@@ -464,7 +483,9 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   function drawBed(page) {
     const BW = cfg.bedW, BH = cfg.bedH;
     const { ctx, k } = setupCanvas(BW, BH);
-    ctx.transform(1, 0, 0, -1, 0, BH); // станок: Y вверх
+    // рисуем в координатах плоттера; экран показывает поле сверху (дальний край — вверху),
+    // поэтому, если ноль справа/сверху, отражаем картинку
+    ctx.transform(originRight() ? -1 : 1, 0, 0, originTop() ? 1 : -1, originRight() ? BW : 0, originTop() ? 0 : BH);
     ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, BW, BH);
     ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5 / k;
     ctx.beginPath();
@@ -497,14 +518,29 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       }
       ctx.stroke();
     }
-    const text = (t, x, y, color) => { // текст без отражения
-      ctx.save(); ctx.translate(x, y); ctx.scale(1, -1);
-      ctx.fillStyle = color; ctx.font = `bold ${Math.max(3, 11 / k)}px sans-serif`;
-      ctx.fillText(t, 2, -2); ctx.restore();
+    const dpr = window.devicePixelRatio || 1;
+    const text = (t, x, y, color, dy) => { // текст всегда читаемый: рисуем в экранных пикселях
+      const pt = ctx.getTransform().transformPoint(new DOMPoint(x, y));
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = color; ctx.font = `bold ${12 * dpr}px sans-serif`;
+      const w = ctx.measureText(t).width;
+      const c = $('canvas');
+      ctx.fillText(t, Math.max(2, Math.min(c.width - w - 2, pt.x + 4 * dpr)), Math.max(14 * dpr, Math.min(c.height - 4 * dpr, pt.y + (dy || -4) * dpr)));
+      ctx.restore();
     };
-    drawPath(ctx, k, { clamp: p => p, fromMachine: p => p, text, lw: 1, yUp: true });
-    text('0,0', 24, -1, '#475569');
-    text(cfg.spread ? 'оранжевая линия — верх разворота, серое — перегородка' : 'оранжевая линия — верх листа', 4, BH - 8, '#b45309');
+    drawPath(ctx, k, { clamp: p => p, fromMachine: p => p, text, lw: 1, yUp: !originTop() });
+    text('0,0 плоттера', 0, 0, '#475569', originTop() ? 16 : -6);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const cw = $('canvas').width, chh = $('canvas').height;
+    ctx.font = `${12 * dpr}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('↑ дальний край плоттера', cw / 2, 14 * dpr);
+    ctx.fillStyle = '#b45309';
+    ctx.fillText(cfg.spread ? 'оранжевая линия — верх разворота, серое — перегородка' : 'оранжевая линия — верх листа', cw / 2, chh - 22 * dpr);
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('↓ ближний к вам край', cw / 2, chh - 6 * dpr);
+    ctx.textAlign = 'left';
+    ctx.restore();
   }
 
   // ---------- симуляция ----------
@@ -815,7 +851,8 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     const jog = (dx, dy) => {
       if (!sender.connected || (sender.job && !sender.job.finished)) return;
       const st = +$('jogStep').value || 1;
-      dx *= st; dy *= st;
+      // стрелки — как видно сверху; если ноль справа/сверху, оси плоттера направлены наоборот
+      dx *= st * (originRight() ? -1 : 1); dy *= st * (originTop() ? -1 : 1);
       if (live.pos) { // не выезжаем за рабочее поле
         const tx = Math.max(0, Math.min(cfg.bedW, live.pos[0] + dx)), ty = Math.max(0, Math.min(cfg.bedH, live.pos[1] + dy));
         dx = round2(tx - live.pos[0]); dy = round2(ty - live.pos[1]);
@@ -829,6 +866,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('setHome').onclick = () => {
       if (!live.pos) { alert('Плоттер ещё не сообщил координаты — подождите секунду и нажмите снова.'); return; }
       const [x, y] = live.pos.map(round2);
+      $('homeCorner').value = 'custom';
       $('startX').value = x; $('startY').value = y;
       logLine(`Точка дома запомнена: X ${x}, Y ${y}`, 'info');
       schedule();
