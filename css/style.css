@@ -88,3 +88,9 @@ details.sub summary { font-weight: 500; font-size: 12px; color: #4b5563; }
 #updBar[hidden] { display: none; }
 #updBar button { padding: 4px 12px; }
 #updApply { background: #16a34a; color: #fff; border-color: #16a34a; }
+
+.jog { display: flex; gap: 12px; align-items: flex-start; margin: 6px 0; flex-wrap: wrap; }
+.jogPad { display: grid; grid-template-columns: 40px 64px 40px; gap: 4px; align-items: center; }
+.jogPad .jb { height: 34px; font-size: 14px; padding: 0; }
+.jogPad select { height: 34px; text-align: center; }
+.jogBtns { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }

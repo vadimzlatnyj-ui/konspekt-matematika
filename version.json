@@ -1,23 +1,23 @@
 {
-  "version": "5a3242fe4232",
-  "built": 1795724492266,
-  "date": "2026-11-26T20:21:32.266Z",
-  "notes": "Каждый Enter — новая строка; демонстрационный пример с формулами и графиками",
+  "version": "4532f6052060",
+  "built": 1795724835448,
+  "date": "2026-11-26T20:27:15.448Z",
+  "notes": "Рабочее поле плоттера, точка дома, перемещение ручки стрелками",
   "files": [
     {
       "path": "index.html",
-      "size": 20387,
-      "sha256": "a00b6c16305811ce939247913e413fa5f5fc9450cb1934475d1333560e96ffb3"
+      "size": 22144,
+      "sha256": "06fe2b330cd8a01e576827f5c170693dea10e78ed1bffae43ea2deeeb7da9d5d"
     },
     {
       "path": "css/style.css",
-      "size": 5611,
-      "sha256": "5a42122699b6acaa4ea4f1aaaeba35e97f9765561366d16967bc6631762094ad"
+      "size": 5977,
+      "sha256": "c3fe574d1b3c0269809796f57d26f9a4454122a5eb10bd2943338e89921f034c"
     },
     {
       "path": "js/app.js",
-      "size": 54671,
-      "sha256": "d5ca55d8f0c33a4fc7fe967d78003938a2e7fa408c5a74b0c3d7edf6050a57de"
+      "size": 58962,
+      "sha256": "2230152fe0a8903cf69c06d74cba8eec969f30c0d8fed71739030012c44f5070"
     },
     {
       "path": "js/customfont.js",

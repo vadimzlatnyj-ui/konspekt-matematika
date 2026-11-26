@@ -66,7 +66,20 @@
     </details>
 
     <details open>
-      <summary>Положение тетради на столе</summary>
+      <summary>Плоттер: рабочее поле, дом, тетрадь</summary>
+      <div class="row">
+        <label>Рабочее поле X, мм <input type="number" id="bedW" step="1" min="10"></label>
+        <label>Рабочее поле Y, мм <input type="number" id="bedH" step="1" min="10"></label>
+      </div>
+      <button id="bedFromPlotter" type="button">⬇ Взять размер из плоттера (GRBL $130/$131)</button>
+      <p class="hint">Сколько миллиметров ручка может проехать по X и Y. Перед печатью программа проверит, что всё помещается.</p>
+      <div class="row">
+        <label>🏠 Дом X, мм <input type="number" id="startX" step="0.5"></label>
+        <label>🏠 Дом Y, мм <input type="number" id="startY" step="0.5"></label>
+      </div>
+      <p class="hint">Точка дома — где стоит поднятая ручка перед печатью и куда она возвращается после неё и после «Стоп».
+        Удобно задать кнопками справа: подвезите ручку стрелками и нажмите «📍 Запомнить: дом здесь».</p>
+      <p class="hint" style="margin-top:8px"><b>Где лежит тетрадь:</b></p>
       <div class="row">
         <label>X угла, мм <input type="number" id="offsetX" step="0.5"></label>
         <label>Y угла, мм <input type="number" id="offsetY" step="0.5"></label>
@@ -82,15 +95,6 @@
       </label>
       <label class="chk"><input type="checkbox" id="mirrorX"> Отразить по X</label>
       <label class="chk"><input type="checkbox" id="mirrorY"> Отразить по Y (ось Y станка направлена к себе)</label>
-      <div class="row">
-        <label>Старт ручки X <input type="number" id="startX" step="0.5"></label>
-        <label>Старт ручки Y <input type="number" id="startY" step="0.5"></label>
-      </div>
-      <p class="hint">Где стоит (поднятая) ручка перед запуском — обычно 0,0 после «Домой». Показана зелёным кружком.</p>
-      <div class="row">
-        <label>Стол X, мм <input type="number" id="bedW" step="1"></label>
-        <label>Стол Y, мм <input type="number" id="bedH" step="1"></label>
-      </div>
     </details>
 
     <details open>
@@ -265,10 +269,23 @@
       </div>
       <p class="hint">Меняется сразу, в том числе во время печати. Холостые переезды и подъём ручки идут со своей скоростью.</p>
       <label class="chk"><input type="checkbox" id="parkOnStop" checked> После «Стоп» — поднять ручку и вернуть в точку старта</label>
-      <div class="bar">
-        <button id="jogUp" type="button" disabled>Поднять ручку</button>
-        <button id="jogDown" type="button" disabled>Опустить ручку</button>
-        <button id="jogStart" type="button" disabled>Ручку в старт</button>
+      <div class="jog">
+        <div class="jogPad">
+          <span></span><button type="button" class="jb" data-dx="0" data-dy="1" title="Вперёд по Y">▲</button><span></span>
+          <button type="button" class="jb" data-dx="-1" data-dy="0" title="Влево по X">◀</button>
+          <select id="jogStep" title="Шаг движения, мм">
+            <option>0.1</option><option>1</option><option selected>10</option><option>50</option>
+          </select>
+          <button type="button" class="jb" data-dx="1" data-dy="0" title="Вправо по X">▶</button>
+          <span></span><button type="button" class="jb" data-dx="0" data-dy="-1" title="Назад по Y">▼</button><span></span>
+        </div>
+        <div class="jogBtns">
+          <button id="jogUp" type="button" disabled>Поднять ручку</button>
+          <button id="jogDown" type="button" disabled>Опустить ручку</button>
+          <button id="jogStart" type="button" disabled>🏠 Ручку домой</button>
+          <button id="setHome" type="button" disabled>📍 Запомнить: дом здесь</button>
+          <button id="zeroHere" type="button" disabled title="Плоттер будет считать текущее положение точкой 0,0">Ноль плоттера здесь (0,0)</button>
+        </div>
       </div>
       <div id="liveInfo"></div>
       <progress id="printProg" max="1000" value="0"></progress>

@@ -190,7 +190,9 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     const warns = result.warnings.slice();
     const maxX = +cfg.offsetX + tf.bboxW, maxY = +cfg.offsetY + tf.bboxH;
     if (cfg.offsetX < 0 || cfg.offsetY < 0 || maxX > cfg.bedW || maxY > cfg.bedH)
-      warns.push(`Тетрадь выходит за пределы стола (${maxX.toFixed(0)}×${maxY.toFixed(0)} мм при столе ${cfg.bedW}×${cfg.bedH}).`);
+      warns.push(`Тетрадь выходит за рабочее поле плоттера (нужно ${maxX.toFixed(0)}×${maxY.toFixed(0)} мм, а поле ${cfg.bedW}×${cfg.bedH} мм).`);
+    if (cfg.startX < 0 || cfg.startY < 0 || cfg.startX > cfg.bedW || cfg.startY > cfg.bedH)
+      warns.push(`Точка дома (${cfg.startX}; ${cfg.startY}) вне рабочего поля.`);
     $('warnings').innerHTML = warns.map(w => `<div>${escapeHtml(w)}</div>`).join('');
     render();
   }
@@ -636,7 +638,8 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('pauseBtn').disabled = name !== 'printing';
     $('resumeBtn').disabled = !(name === 'paused' || name === 'waitPage');
     $('stopBtn').disabled = !busy;
-    ['jogUp', 'jogDown', 'jogStart'].forEach(id => { $(id).disabled = !conn || busy; });
+    ['jogUp', 'jogDown', 'jogStart', 'setHome', 'zeroHere'].forEach(id => { $(id).disabled = !conn || busy; });
+    document.querySelectorAll('.jb').forEach(b => { b.disabled = !conn || busy; });
     // во время печати нельзя менять текст и настройки — иначе картинка разойдётся с тем, что печатается
     document.querySelectorAll('#settings input, #settings select, #settings textarea, #text, #prev, #next').forEach(el => { el.disabled = busy; });
     $('fw').disabled = $('baud').disabled = conn;
@@ -807,8 +810,63 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     // плоттер подключили кабелем (или включили) — подключаемся
     navigator.serial.addEventListener('connect', () => setTimeout(() => autoConnect('plug'), 800));
     setTimeout(() => autoConnect('start'), 600);
+    // ----- рабочее поле, дом, ручное перемещение -----
+    const round2 = v => Math.round(v * 100) / 100;
+    const jog = (dx, dy) => {
+      if (!sender.connected || (sender.job && !sender.job.finished)) return;
+      const st = +$('jogStep').value || 1;
+      dx *= st; dy *= st;
+      if (live.pos) { // не выезжаем за рабочее поле
+        const tx = Math.max(0, Math.min(cfg.bedW, live.pos[0] + dx)), ty = Math.max(0, Math.min(cfg.bedH, live.pos[1] + dy));
+        dx = round2(tx - live.pos[0]); dy = round2(ty - live.pos[1]);
+        if (!dx && !dy) { logLine('Дальше — край рабочего поля', 'info'); return; }
+      }
+      const f = Math.min(+cfg.feedTravel || 3000, 6000);
+      if (sender.firmware === 'grbl') sender.command(`$J=G91 G21 X${dx} Y${dy} F${f}`);
+      else { sender.command('G91'); sender.command(`G0 X${dx} Y${dy} F${f}`); sender.command('G90'); }
+    };
+    document.querySelectorAll('.jb').forEach(b => { b.onclick = () => jog(+b.dataset.dx, +b.dataset.dy); });
+    $('setHome').onclick = () => {
+      if (!live.pos) { alert('Плоттер ещё не сообщил координаты — подождите секунду и нажмите снова.'); return; }
+      const [x, y] = live.pos.map(round2);
+      $('startX').value = x; $('startY').value = y;
+      logLine(`Точка дома запомнена: X ${x}, Y ${y}`, 'info');
+      schedule();
+    };
+    $('zeroHere').onclick = () => {
+      if (!confirm('Сделать текущее положение ручки точкой 0,0 плоттера?\n\nНужно, если после включения плоттер считает нулём не тот угол. ' +
+        'Обычно ноль — левый нижний (ближний левый) угол рабочего поля.')) return;
+      sender.command(sender.firmware === 'grbl' ? 'G10 L20 P1 X0 Y0' : 'G92 X0 Y0');
+      logLine('Текущее положение теперь 0,0', 'info');
+    };
+    $('bedFromPlotter').onclick = () => {
+      if (!sender.connected) { alert('Сначала подключите плоттер.'); return; }
+      if (sender.firmware !== 'grbl') { alert('Читать размер поля умею только у GRBL. Для Marlin введите размеры вручную.'); return; }
+      if (!(+grbl[130] > 0) || !(+grbl[131] > 0)) { sender.command('$$'); alert('Запросил настройки у плоттера — нажмите ещё раз через секунду.'); return; }
+      $('bedW').value = +grbl[130]; $('bedH').value = +grbl[131];
+      logLine(`Рабочее поле из плоттера: ${grbl[130]} × ${grbl[131]} мм`, 'info');
+      schedule();
+    };
+
+    /** Вылезает ли программа за рабочее поле: проверяем все координаты X/Y */
+    const outOfField = lines => {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const l of lines) {
+        if (/^\s*;/.test(l)) continue;
+        const mx = /X(-?[\d.]+)/.exec(l), my = /Y(-?[\d.]+)/.exec(l);
+        if (mx) { minX = Math.min(minX, +mx[1]); maxX = Math.max(maxX, +mx[1]); }
+        if (my) { minY = Math.min(minY, +my[1]); maxY = Math.max(maxY, +my[1]); }
+      }
+      const e = 0.01;
+      return (minX < -e || minY < -e || maxX > cfg.bedW + e || maxY > cfg.bedH + e)
+        ? `X от ${round2(minX)} до ${round2(maxX)}, Y от ${round2(minY)} до ${round2(maxY)}` : null;
+    };
+
     const startPrint = which => {
       const prog = PlotGcode.program(sheets, G(), which);
+      const out = outOfField(prog.lines);
+      if (out && !confirm(`Печать выходит за рабочее поле плоттера (${cfg.bedW} × ${cfg.bedH} мм):\n${out}.\n\n` +
+        'Плоттер может упереться в край. Проверьте «X/Y угла» тетради и размер поля.\nВсё равно печатать?')) return;
       live.active = true; live.page = which == null ? 0 : which; live.stroke = -1; live.pen = false;
       if (pageIdx !== live.page) { pageIdx = live.page; render(); }
       $('printProg').value = 0;
