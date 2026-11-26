@@ -204,7 +204,9 @@
       j.inflight = null;
       j.idx++;
       j.acked = j.idx;
-      this.on.progress({ acked: j.idx, total: j.total, src: item.src, meta: j.meta[item.src] });
+      const mt = j.meta[item.src];
+      if (mt) j.lastPen = !!mt.pen;          // опущена ли ручка после этой строки программы
+      this.on.progress({ acked: j.idx, total: j.total, src: item.src, meta: mt });
       if (sync) {
         this.paused = true;
         this.on.state('waitPage', item.text);
@@ -214,17 +216,38 @@
       this.pump();
     }
 
-    pause() {
-      if (!this.job || this.job.finished) return;
+    /** Отправить служебные строки вне программы и дождаться их «ok» */
+    async sendManual(lines, timeout = 15000) {
+      for (const l of lines) { this.manual = (this.manual || 0) + 1; this.raw(l + '\n'); this.on.log(l, 'tx'); }
+      const t0 = Date.now();
+      while ((this.manual || 0) > 0 && Date.now() - t0 < timeout && this.port) await new Promise(r => setTimeout(r, 30));
+    }
+
+    /**
+     * Мягкая пауза: плоттер дорисовывает уже отправленные отрезки, останавливается и поднимает ручку
+     * (а не замирает посреди линии с прижатой ручкой — так серво не гудит и не остаётся клякса).
+     */
+    async pause(penUpLines, penIsDown) {
+      const j = this.job;
+      if (!j || j.finished || this.paused) return;
       this.paused = true;
-      if (this.firmware === 'grbl') this.raw('!');
+      this.on.state('pausing');
+      const t0 = Date.now();
+      while (j.inflight && Date.now() - t0 < 5000) await new Promise(r => setTimeout(r, 30));
+      if (this.job !== j) return; // за это время нажали «Стоп»
+      penIsDown = !!j.lastPen;    // положение ручки там, где реально остановилась программа
+      await this.sendManual([this.firmware === 'grbl' ? 'G4 P0.01' : 'M400'].concat(penIsDown ? penUpLines || [] : []));
+      if (this.job !== j) return;
+      this.restorePen = !!penIsDown;
       this.on.state('paused');
     }
 
-    resume() {
-      if (!this.job || this.job.finished) return;
+    async resume(penDownLines) {
+      const j = this.job;
+      if (!j || j.finished) return;
+      if (this.restorePen) { this.restorePen = false; await this.sendManual(penDownLines || []); }
+      if (this.job !== j) return;
       this.paused = false;
-      if (this.firmware === 'grbl') this.raw('~');
       this.on.state('printing');
       this.pump();
     }
@@ -287,7 +310,7 @@
 
     abortJob(state) {
       if (this.job) this.job.finished = true;
-      this.job = null; this.paused = false;
+      this.job = null; this.paused = false; this.restorePen = false;
       this.on.state(state);
     }
   }

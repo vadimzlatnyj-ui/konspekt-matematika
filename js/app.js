@@ -309,13 +309,38 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       label('1-й штрих', fx, fy, '#15803d');
     }
     // текущее положение ручки при симуляции
-    if (simMode) {
-      ctx.lineWidth = 2 / k;
-      ctx.strokeStyle = down ? '#2563eb' : '#dc2626';
-      ctx.fillStyle = down ? 'rgba(37,99,235,.35)' : 'rgba(220,38,38,.15)';
-      ctx.beginPath(); ctx.arc(pen[0], pen[1], R * (down ? 0.8 : 1.3), 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
-      label(down ? 'пишет' : 'поднята', pen[0], pen[1], down ? '#1d4ed8' : '#b91c1c');
+    if (simMode) drawPen(ctx, k, pen[0], pen[1], down, !!opts.yUp);
+  }
+
+  /**
+   * Модель ручки: зелёная — пишет (касается бумаги), красная — поднята (приподнята над точкой, под ней — тень).
+   * yUp — система координат с осью Y вверх (вид «Стол станка»).
+   */
+  function drawPen(ctx, k, x, y, down, yUp) {
+    const s = 1 / k;                          // 1 экранный пиксель в мм
+    const up = yUp ? 1 : -1;                  // направление «вверх» на экране
+    const ang = 62 * Math.PI / 180;           // ручка наклонена вправо-вверх
+    const ax = Math.cos(ang), ay = Math.sin(ang) * up;   // ось ручки
+    const nx = -ay, ny = ax;                  // поперёк ручки
+    const lift = down ? 0 : 9 * s;            // поднятая ручка висит над бумагой
+    const tx = x + ax * lift, ty = y + ay * lift;
+    const P = (a, b) => [tx + ax * a * s + nx * b * s, ty + ay * a * s + ny * b * s];
+    const poly = (pts, fill, stroke) => {
+      ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+      ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = 1.2 * s; ctx.stroke();
+    };
+    const body = down ? '#22c55e' : '#ef4444', dark = down ? '#15803d' : '#b91c1c';
+    // тень/точка касания
+    ctx.fillStyle = down ? 'rgba(21,128,61,.35)' : 'rgba(185,28,28,.25)';
+    ctx.beginPath(); ctx.ellipse(x, y, (down ? 3 : 5) * s, (down ? 3 : 3) * s, 0, 0, 2 * Math.PI); ctx.fill();
+    if (!down) {
+      ctx.setLineDash([2 * s, 2 * s]); ctx.strokeStyle = dark; ctx.lineWidth = 1 * s;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke(); ctx.setLineDash([]);
     }
+    poly([P(0, 0), P(9, -4), P(9, 4)], '#475569', '#1e293b');                   // стержень/наконечник
+    poly([P(9, -5), P(46, -5), P(46, 5), P(9, 5)], body, dark);                  // корпус
+    poly([P(30, -5.5), P(36, -5.5), P(36, 5.5), P(30, 5.5)], dark, dark);        // ободок
+    poly([P(46, -5), P(52, -4), P(52, 4), P(46, 5)], dark, dark);               // колпачок
   }
 
   /** Во время печати: напечатанное — тёмным, остальное — серым, ручка — по координатам от плоттера */
@@ -338,15 +363,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     ctx.beginPath(); ctx.arc(sx, sy, R * 0.8, 0, 2 * Math.PI); ctx.stroke();
     if (live.pos) {
       const [px, py] = opts.fromMachine(live.pos);
-      const down = live.pen;
-      // перекрестие, чтобы ручку было видно издалека
-      ctx.strokeStyle = down ? 'rgba(37,99,235,.5)' : 'rgba(220,38,38,.5)'; ctx.lineWidth = 0.8 / k;
-      ctx.beginPath(); ctx.moveTo(px - R * 3, py); ctx.lineTo(px + R * 3, py); ctx.moveTo(px, py - R * 3); ctx.lineTo(px, py + R * 3); ctx.stroke();
-      ctx.lineWidth = 2.2 / k;
-      ctx.strokeStyle = down ? '#2563eb' : '#dc2626';
-      ctx.fillStyle = down ? 'rgba(37,99,235,.35)' : 'rgba(220,38,38,.15)';
-      ctx.beginPath(); ctx.arc(px, py, R * (down ? 0.9 : 1.4), 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
-      opts.text(`ручка ${down ? 'пишет' : 'поднята'}`, px, py, down ? '#1d4ed8' : '#b91c1c');
+      drawPen(ctx, k, px, py, live.pen, !!opts.yUp);
     }
   }
 
@@ -470,7 +487,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
       ctx.fillStyle = color; ctx.font = `bold ${Math.max(3, 11 / k)}px sans-serif`;
       ctx.fillText(t, 2, -2); ctx.restore();
     };
-    drawPath(ctx, k, { clamp: p => p, fromMachine: p => p, text, lw: 1 });
+    drawPath(ctx, k, { clamp: p => p, fromMachine: p => p, text, lw: 1, yUp: true });
     text('0,0', 24, -1, '#475569');
     text(cfg.spread ? 'оранжевая линия — верх разворота, серое — перегородка' : 'оранжевая линия — верх листа', 4, BH - 8, '#b45309');
   }
@@ -589,13 +606,13 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     const st = $('connState');
     const names = {
       disconnected: ['не подключён', 'off'], idle: ['подключён', 'on'], printing: ['печать…', 'busy'],
-      paused: ['пауза', 'warn'], waitPage: ['смените лист и нажмите «Продолжить»', 'warn'],
+      paused: ['пауза — ручка поднята', 'warn'], pausing: ['останавливаюсь…', 'warn'], waitPage: ['смените лист и нажмите «Продолжить»', 'warn'],
       done: ['готово ✓', 'on'], stopped: ['остановлено', 'warn'],
     };
     const [txt, cls] = names[name] || [name, 'on'];
     st.textContent = txt; st.className = 'pill ' + cls;
     const conn = name !== 'disconnected';
-    const busy = name === 'printing' || name === 'paused' || name === 'waitPage';
+    const busy = name === 'printing' || name === 'paused' || name === 'pausing' || name === 'waitPage';
     $('connect').textContent = conn ? 'Отключить' : '🔌 Подключить';
     $('printPage').disabled = $('printAll').disabled = !conn || busy;
     $('pauseBtn').disabled = name !== 'printing';
@@ -606,6 +623,7 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     document.querySelectorAll('#settings input, #settings select, #settings textarea, #text, #prev, #next').forEach(el => { el.disabled = busy; });
     $('fw').disabled = $('baud').disabled = conn;
     live.active = busy || (live.active && name === 'done');
+    if (name === 'paused' || name === 'waitPage') live.pen = false;
     if (name === 'waitPage') logLine(`${cfg.spread ? 'Разворот ' + (live.page + 1) : 'Страница ' + (live.page + cfg.firstPage)} готов${cfg.spread ? '' : 'а'}. Переверните/смените лист, положите тетрадь на то же место и нажмите «Продолжить».`, 'info');
     queueDraw();
   }
@@ -751,8 +769,9 @@ $$\left(\frac{a+b}{2}\right)^2 \ge ab, \quad \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
     };
     $('printPage').onclick = () => startPrint(pageIdx);
     $('printAll').onclick = () => startPrint(null);
-    $('pauseBtn').onclick = () => sender.pause();
-    $('resumeBtn').onclick = () => sender.resume();
+    const lns = t => t.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean);
+    $('pauseBtn').onclick = () => sender.pause(lns(cfg.penUp), live.pen);
+    $('resumeBtn').onclick = () => sender.resume(lns(cfg.penDown));
     $('stopBtn').onclick = () => sender.stop(afterStop());
 
     // ----- скорость печати -----
