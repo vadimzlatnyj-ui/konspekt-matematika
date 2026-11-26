@@ -151,6 +151,11 @@
     let lineOnPage = 0;
 
     const marginsFor = idx => {
+      if (opt.spread) {
+        // разворот: широкое поле (marginRight) — всегда снаружи: у левой страницы слева, у правой справа
+        const isLeft = (idx + (opt.spreadStart === 'right' ? 1 : 0)) % 2 === 0;
+        return isLeft ? { left: opt.marginRight, right: opt.marginLeft } : { left: opt.marginLeft, right: opt.marginRight };
+      }
       const even = (idx + (opt.firstPage || 1)) % 2 === 0;
       if (opt.mirrorMargins && even) return { left: opt.marginRight, right: opt.marginLeft };
       return { left: opt.marginLeft, right: opt.marginRight };

@@ -52,7 +52,9 @@ button.danger { color: #b91c1c; }
 .sim #simPos { flex: 1; min-width: 120px; }
 #simInfo { font-size: 12px; color: #374151; min-width: 150px; }
 
+#printPanel { border: 1px solid #c7d2fe; border-radius: 8px; padding: 4px 10px 8px; background: #f8faff; }
 #printPanel .bar { margin: 6px 0; }
+#serialLog { max-height: 80px !important; }
 .pill { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #e5e7eb; color: #374151; }
 .pill.on { background: #dcfce7; color: #166534; }
 .pill.busy { background: #dbeafe; color: #1e40af; }
@@ -63,3 +65,4 @@ button.danger { color: #b91c1c; }
 #serialLog { max-height: 120px; overflow: auto; background: #0f172a; color: #cbd5e1; font-size: 11px; padding: 6px; border-radius: 5px; margin: 6px 0 0; white-space: pre-wrap; }
 #serialLog .err { color: #fca5a5; } #serialLog .tx { color: #93c5fd; } #serialLog .info { color: #86efac; }
 button:disabled { opacity: .5; cursor: default; }
+#serialLog:empty { display: none; }

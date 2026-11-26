@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Плоттер-конспект: формулы → G-code</title>
+  <title>Плоттер-конспект</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <header>
-  <h1>Плоттер-конспект <span>текст и формулы → G-code, по страницам тетради</span></h1>
+  <h1>Плоттер-конспект <span>пишет текст, формулы и графики в тетради — печать по USB</span></h1>
 </header>
 
 <main>
@@ -38,6 +38,18 @@
         <label>Поле слева <input type="number" id="marginLeft" step="1"></label>
         <label>Поле справа <input type="number" id="marginRight" step="1"></label>
       </div>
+      <label class="chk"><input type="checkbox" id="spread"> <b>Разворот: писать сразу на 2 страницах</b></label>
+      <div class="row">
+        <label>Перегородка (корешок), мм <input type="number" id="spineGap" step="0.5" min="0"></label>
+        <label>Начать с
+          <select id="spreadStart">
+            <option value="left">левой страницы</option>
+            <option value="right">правой страницы</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">Раскрытая тетрадь кладётся на стол целиком. Перегородка — полоса между страницами (корешок, скрепки), где ручка не пишет.
+        «X/Y угла» — это левый нижний угол <i>левой</i> страницы. Широкое поле (справа) ставится снаружи у обеих страниц.</p>
       <label class="chk"><input type="checkbox" id="mirrorMargins"> Зеркальные поля на чётных страницах</label>
       <label class="chk"><input type="checkbox" id="snapToGrid"> Строки по линиям клеток</label>
       <div class="row">
@@ -179,29 +191,10 @@
         <option value="bed">Стол станка</option>
       </select>
     </div>
-    <div id="canvasWrap"><canvas id="canvas"></canvas></div>
-    <div class="bar sim">
-      <button id="simPlay" type="button" title="Показать, как будет двигаться ручка">▶ Симуляция</button>
-      <input type="range" id="simPos" min="0" max="1000" value="1000">
-      <select id="simSpeed" title="Скорость симуляции">
-        <option value="1">×1 (реальная)</option>
-        <option value="5">×5</option>
-        <option value="20" selected>×20</option>
-        <option value="100">×100</option>
-      </select>
-      <span id="simInfo"></span>
-    </div>
-    <div id="stats"></div>
-    <div class="btns">
-      <button id="dlPage" type="button" class="primary">Скачать эту страницу (.gcode)</button>
-      <button id="dlAll" type="button">Все страницы одним файлом</button>
-      <button id="dlEach" type="button">Каждую страницу отдельно</button>
-      <button id="copyPage" type="button">Копировать G-code страницы</button>
-    </div>
     <details id="printPanel" open>
-      <summary>Печать на плоттер по USB — ручка в реальном времени</summary>
-      <p class="hint" id="serialNote">Плоттер подключается к компьютеру USB-кабелем, печать идёт прямо отсюда, а на листе видно, где сейчас ручка.
-        Работает в Chrome, Edge или Яндекс.Браузере на компьютере. Программу-отправитель (UGS, Candle…) при этом закройте — порт может занимать только одна программа.</p>
+      <summary>Плоттер (USB)</summary>
+      <p class="hint" id="serialNote">Подключите плоттер USB-кабелем и нажмите «Подключить». Во время печати на листе видно, где сейчас ручка.
+        Другие программы, работающие с плоттером (UGS, Candle…), закройте — порт может занимать только одна программа.</p>
       <div class="bar">
         <select id="fw" title="Прошивка плоттера">
           <option value="grbl">GRBL</option>
@@ -228,6 +221,28 @@
       <div id="liveInfo"></div>
       <progress id="printProg" max="1000" value="0"></progress>
       <pre id="serialLog"></pre>
+    </details>
+    <div id="canvasWrap"><canvas id="canvas"></canvas></div>
+    <div class="bar sim">
+      <button id="simPlay" type="button" title="Показать, как будет двигаться ручка">▶ Симуляция</button>
+      <input type="range" id="simPos" min="0" max="1000" value="1000">
+      <select id="simSpeed" title="Скорость симуляции">
+        <option value="1">×1 (реальная)</option>
+        <option value="5">×5</option>
+        <option value="20" selected>×20</option>
+        <option value="100">×100</option>
+      </select>
+      <span id="simInfo"></span>
+    </div>
+    <div id="stats"></div>
+    <details>
+      <summary>Сохранить G-code в файл (если печатаете другой программой)</summary>
+      <div class="btns">
+        <button id="dlPage" type="button">Сохранить эту страницу</button>
+        <button id="dlAll" type="button">Все страницы одним файлом</button>
+        <button id="dlEach" type="button">Каждую страницу отдельно</button>
+        <button id="copyPage" type="button">Копировать G-code</button>
+      </div>
     </details>
     <details>
       <summary>G-code текущей страницы</summary>

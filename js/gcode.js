@@ -187,7 +187,7 @@
     const none = n => { while (meta.length < n) meta.push({ page: -1, stroke: -1, pen: false }); };
     const hdr = t => lines(t.replace(/\{startX\}/g, +cfg.startX || 0).replace(/\{startY\}/g, +cfg.startY || 0).replace(/\{pages\}/g, total).replace(/\{page\}/g, list.length === 1 ? list[0] + 1 : 1));
     out.push('; Сгенерировано: Плоттер-конспект (формулы в G-code)');
-    out.push(`; Лист ${cfg.pageW}x${cfg.pageH} мм, смещение X${cfg.offsetX} Y${cfg.offsetY}, поворот ${cfg.rotation}°`);
+    out.push(`; ${cfg.spread ? 'Разворот' : 'Лист'} ${cfg.pageW}x${cfg.pageH} мм, смещение X${cfg.offsetX} Y${cfg.offsetY}, поворот ${cfg.rotation}°`);
     out.push(`; Ручка должна стоять в точке старта X${+cfg.startX || 0} Y${+cfg.startY || 0} (поднята)`);
     out.push(...hdr(cfg.header));
     const stats = { draw: 0, travel: 0, lifts: 0, time: 0, strokes: 0 };

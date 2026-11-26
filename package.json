@@ -1,0 +1,18 @@
+{
+  "name": "plotter-konspekt",
+  "productName": "Плоттер-конспект",
+  "version": "1.0.0",
+  "description": "Пишет текст, формулы и графики в тетради пишущим плоттером по USB",
+  "main": "desktop/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-packager . PlotterKonspekt --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore=^/dist --ignore=^/scratch --app-version=1.0.0 --win32metadata.ProductName=\"Плоттер-конспект\" --win32metadata.FileDescription=\"Плоттер-конспект\"",
+    "build:linux": "electron-packager . PlotterKonspekt --platform=linux --arch=x64 --out=dist --overwrite --prune=true --ignore=^/dist",
+    "build:mac": "electron-packager . PlotterKonspekt --platform=darwin --arch=x64,arm64 --out=dist --overwrite --prune=true --ignore=^/dist"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.6",
+    "electron": "^33.4.11"
+  }
+}
