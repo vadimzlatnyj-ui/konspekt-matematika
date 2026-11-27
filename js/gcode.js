@@ -102,15 +102,17 @@
     const strokes = page.strokes.filter(s => s.length >= 1);
     const order = cfg.order || 'lines';
     if (order === 'shortest') return optimizeOrder(strokes, start);
-    if (order === 'asis') return strokes.slice();
+    if (order === 'asis') { const r = strokes.slice(); r.lines = (page.lineOf || []).slice(); return r; }
     // по строкам: строки по возрастанию номера, внутри — по порядку письма слева направо;
     // штрих переворачиваем, если его конец ближе к ручке
     const lineOf = page.lineOf || [];
     const idx = strokes.map((s, i) => i);
     idx.sort((a, b) => (lineOf[a] || 0) - (lineOf[b] || 0) || a - b);
     const res = [];
+    res.lines = [];                      // номер строки текста для каждого штриха (для «дописать строку и закончить»)
     let cur = start;
     for (const i of idx) {
+      res.lines.push(lineOf[i] || 0);
       let st = page.strokes[i];
       const a = st[0], b = st[st.length - 1];
       if ((b[0] - cur[0]) ** 2 + (b[1] - cur[1]) ** 2 < (a[0] - cur[0]) ** 2 + (a[1] - cur[1]) ** 2 - 1e-9) st = st.slice().reverse();
@@ -134,13 +136,18 @@
     const f = v => (+v.toFixed(d)).toString();
     const minSeg = cfg.minSegment || 0.05;
 
-    const strokes = orderPage(page, cfg).map(s => simplify(s.map(tf), minSeg)).filter(s => s.length >= 2);
+    const ordered = orderPage(page, cfg);
+    const strokes = [], strokeLine = [];
+    ordered.forEach((s, i) => {
+      const m = simplify(s.map(tf), minSeg);
+      if (m.length >= 2) { strokes.push(m); strokeLine.push(ordered.lines ? ordered.lines[i] : null); }
+    });
 
     const out = [], meta = [];
     let cur = -1; // номер текущего штриха
     let pos = [+cfg.startX || 0, +cfg.startY || 0], down = false; // ручка стартует из точки старта
     // meta[i] — к какому штриху относится строка и опущена ли ручка после неё (для показа печати)
-    const push = (...ls) => { for (const l of ls) { out.push(l); meta.push({ page: pageNo - 1, stroke: cur, pen: down }); } };
+    const push = (...ls) => { for (const l of ls) { out.push(l); meta.push({ page: pageNo - 1, stroke: cur, pen: down, line: cur >= 0 && cur < strokeLine.length ? strokeLine[cur] : null }); } };
     const sub = t => t.replace(/\{page\}/g, pageNo).replace(/\{pages\}/g, totalPages);
     push(`; --- Страница ${pageNo} из ${totalPages} ---`);
     let draw = 0, travel = 0, lifts = 0;
@@ -200,6 +207,10 @@
         out.push(...lines((cfg.betweenPages || '').replace(/\{startX\}/g, +cfg.startX || 0).replace(/\{startY\}/g, +cfg.startY || 0).replace(/\{page\}/g, idx + 1).replace(/\{next\}/g, idx + 2).replace(/\{pages\}/g, total)));
       }
     });
+    // в конце — всегда поднять ручку и вернуться в точку дома
+    none(out.length);
+    out.push('; --- конец: ручку вверх и домой ---', ...lines(cfg.penUp), 'G90', `G0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`);
+    none(out.length);
     out.push(...hdr(cfg.footer));
     none(out.length);
     return { text: out.join('\n') + '\n', lines: out, meta, stats };

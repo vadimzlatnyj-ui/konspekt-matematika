@@ -89,6 +89,7 @@
       <p class="hint">Сколько миллиметров ручка может проехать по X и Y. Перед печатью программа проверит, что всё помещается.</p>
       <label>🏠 Точка дома (отсюда начинается печать и сюда возвращается ручка)
         <select id="homeCorner">
+          <option value="nb">↖ угол тетради (верхний левый угол листа)</option>
           <option value="tl">↖ левый верхний угол поля</option>
           <option value="tr">↗ правый верхний угол поля</option>
           <option value="bl">↙ левый нижний угол поля</option>
@@ -304,6 +305,7 @@
         </select>
         <button id="pauseBtn" type="button" disabled>⏸ Пауза</button>
         <button id="resumeBtn" type="button" disabled>▶ Продолжить</button>
+        <button id="finishBtn" type="button" disabled title="Дописать строку, которую плоттер уже начал, поднять ручку и вернуться домой">⏹ Дописать строку и закончить</button>
         <button id="stopBtn" type="button" class="danger" disabled>⏹ Стоп</button>
       </div>
       <div class="bar speed">
@@ -329,6 +331,7 @@
           <button id="jogUp" type="button" disabled>Поднять ручку</button>
           <button id="jogDown" type="button" disabled>Опустить ручку</button>
           <button id="jogStart" type="button" disabled>🏠 Ручку домой</button>
+          <button id="nbCorner" type="button" disabled title="Подвезите ручку стрелками к верхнему левому углу тетради и нажмите — программа сама поймёт, где лежит тетрадь">📍 Ручка на углу тетради</button>
           <button id="setHome" type="button" disabled>📍 Запомнить: дом здесь</button>
           <button id="flipY" type="button" disabled title="Если ▲ везёт к вам, а ▼ от вас — переключает верх/низ у нуля плоттера (исправит и печать)">▲▼ наоборот — исправить</button>
           <button id="flipX" type="button" disabled title="Если ▶ везёт влево — переключает лево/право у нуля плоттера (исправит и печать)">◀▶ наоборот — исправить</button>

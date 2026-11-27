@@ -171,6 +171,7 @@
         if (clean) send.push({ text: clean, src: i });
       });
       this.job = { send, meta, idx: 0, acked: 0, total: send.length, inflight: null, finished: false };
+      this.finishAfter = null;
       this.paused = false;
       this.manual = 0;
       this.on.state('printing');
@@ -188,6 +189,14 @@
         return;
       }
       const item = j.send[j.idx];
+      // «Дописать строку и закончить»: дошли до следующей строки (или следующего штриха, если строк нет) — заканчиваем
+      if (this.finishAfter) {
+        const m = j.meta[item.src], fa = this.finishAfter;
+        const other = /^M0?[01]\b/i.test(item.text) || (m && m.stroke >= 0 && (
+          (fa.page >= 0 && m.page >= 0 && m.page !== fa.page) ||
+          (fa.line != null && m.line != null ? m.line !== fa.line : m.stroke !== fa.stroke)));
+        if (other || !m) { this.endEarly(); return; }
+      }
       // пауза между страницами (M0/M1): ждём окончания движений и спрашиваем пользователя
       if (/^M0?[01]\b/i.test(item.text)) {
         j.inflight = { item, sync: true };
@@ -213,6 +222,7 @@
       j.acked = j.idx;
       const mt = j.meta[item.src];
       if (mt) j.lastPen = !!mt.pen;          // опущена ли ручка после этой строки программы
+      if (mt && mt.stroke >= 0) j.lastMeta = mt;
       this.on.progress({ acked: j.idx, total: j.total, src: item.src, meta: mt });
       if (sync) {
         this.paused = true;
@@ -247,6 +257,35 @@
       if (this.job !== j) return;
       this.restorePen = !!penIsDown;
       this.on.state('paused');
+    }
+
+    /**
+     * Дописать начатую строку и закончить: дальше этой строки не отправляем, затем ручку вверх и домой.
+     * after — строки «ручку вверх и домой».
+     */
+    finishLine(after) {
+      const j = this.job;
+      if (!j || j.finished) return;
+      this.finishLines = after || [];
+      if (this.paused) { this.endEarly(); return; }        // на паузе ручка уже поднята — сразу домой
+      const m = j.lastMeta || {};
+      this.finishAfter = { page: m.page ?? -1, line: m.line ?? null, stroke: m.stroke ?? -1 };
+      if (!j.lastMeta) { this.endEarly(); return; }       // ещё ничего не нарисовано
+      this.on.state('finishing');
+      this.on.log('Допишу начатую строку и закончу…', 'info');
+    }
+
+    async endEarly() {
+      const j = this.job;
+      if (!j) return;
+      j.finished = true;
+      this.finishAfter = null; this.paused = false; this.restorePen = false;
+      const t0 = Date.now();
+      while (j.inflight && Date.now() - t0 < 5000) await new Promise(r => setTimeout(r, 30));
+      j.inflight = null;
+      await this.sendManual(this.finishLines || []);
+      this.on.state('done');
+      this.on.log('Печать закончена: ручка поднята и вернулась домой.', 'info');
     }
 
     async resume(penDownLines) {

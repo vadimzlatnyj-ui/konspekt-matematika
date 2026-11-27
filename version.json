@@ -1,13 +1,13 @@
 {
-  "version": "a05bb942d8b7",
-  "built": 1795805321899,
-  "date": "2026-11-27T18:48:41.899Z",
-  "notes": "Печать только выделенного текста",
+  "version": "d7ab3476f372",
+  "built": 1795805863765,
+  "date": "2026-11-27T18:57:43.765Z",
+  "notes": "Дописать строку и закончить; ручка на углу тетради; домой в конце печати",
   "files": [
     {
       "path": "index.html",
-      "size": 28312,
-      "sha256": "4f955ca977114384329f46bab45761c7eb3fb570044b2041862d80d4c841fe46"
+      "size": 29012,
+      "sha256": "e842d8fcdad79f43271ea47d8a5931f370a2a8b3a075ce929700a6deaa88aa7f"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 84604,
-      "sha256": "0249ced40b1bd276dfd6e75d7335aaf6f6a2713f83b8b446bc3b94880c31803c"
+      "size": 86816,
+      "sha256": "54cc077a68850ee7d3f3410ee8f5658d75284fb21614e8f699c14739f134c69f"
     },
     {
       "path": "js/customfont.js",
@@ -31,8 +31,8 @@
     },
     {
       "path": "js/gcode.js",
-      "size": 9833,
-      "sha256": "1a0b4b3c2f7e73d5617961dce678fa5ce25f6e7cb779bbba70305299e7f41e16"
+      "size": 10645,
+      "sha256": "6522b73c892b4c78104adc969c3ca866d1fbb633e2446f6ba5dba3fd002dfbc6"
     },
     {
       "path": "js/graph.js",
@@ -61,8 +61,8 @@
     },
     {
       "path": "js/serial.js",
-      "size": 15320,
-      "sha256": "b25432f98936271123f4bd8c51601eb393c952dd7df7b54afbe6cf145540c83d"
+      "size": 17438,
+      "sha256": "10fc756dacdb830916b3f97a86a9e1075a928f95e68a9fb135814fab168039c6"
     },
     {
       "path": "js/vendor/opentype.LICENSE",

@@ -58,10 +58,10 @@
     feedDraw: 1500, feedTravel: 4000, penDelay: 0.2, travelG0: true,
     header: 'G21 ; миллиметры\nG90 ; абсолютные координаты',
     betweenPages: 'G0 X{startX} Y{startY}\nM0 ; Страница {page} готова. Переверните лист и продолжите',
-    footer: 'G0 X{startX} Y{startY}\nM2',
+    footer: 'M2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
     spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMathMode: 'digits', font2Sel: '', font2Ratio: 50, jitter: 0,
-    originCorner: 'bl', homeCorner: 'tl', graphFrame: false, graphNumber: false, graphTable: true, cfgVer: 2, graphPrefix: 'Рис.', graphStart: 1,
+    originCorner: 'bl', homeCorner: 'nb', graphFrame: false, graphNumber: false, graphTable: true, cfgVer: 3, graphPrefix: 'Рис.', graphStart: 1,
   };
 
   const SAMPLE = String.raw`Демонстрация: формулы и графики
@@ -107,7 +107,10 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     try {
       const c = JSON.parse(localStorage.getItem('plotterCfg') || '{}');
       if (!(c.cfgVer >= 2)) { c.graphFrame = false; c.graphNumber = false; c.graphTable = true; }
-      c.cfgVer = 2;
+      if (!(c.cfgVer >= 3) && (c.homeCorner === 'tl' || c.homeCorner === undefined)) c.homeCorner = 'nb';
+      c.cfgVer = 3;
+      if (typeof c.footer === 'string' && /^\s*G0 X(0|\{startX\}) Y(0|\{startY\})\s*\n\s*M2\s*$/.test(c.footer)) c.footer = 'M2';
+      if (typeof c.betweenPages === 'string') c.betweenPages = c.betweenPages.replace(/^G0 X0 Y0$/m, 'G0 X{startX} Y{startY}');
       if (c.fontMath !== undefined && !c.fontMathMode) { c.fontMathMode = c.fontMath ? 'all' : 'digits'; delete c.fontMath; }
       return Object.assign({}, DEFAULTS, c);
     } catch (e) { return Object.assign({}, DEFAULTS); }
@@ -134,7 +137,10 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     }
     // точка дома в углу поля — пересчитываем после чтения всех настроек (угол нуля, размер поля)
     if (cfg.homeCorner && cfg.homeCorner !== 'custom') {
-      const [hx, hy] = cornerMachine(cfg.homeCorner);
+      // дом — угол тетради (верхний левый угол листа) или угол рабочего поля
+      const [hx, hy] = cfg.homeCorner === 'nb'
+        ? PlotGcode.makeTransform(G())([0, 0]).map(v => Math.round(v * 100) / 100)
+        : cornerMachine(cfg.homeCorner);
       cfg.startX = hx; cfg.startY = hy;
       $('startX').value = hx; $('startY').value = hy;
     }
@@ -933,20 +939,21 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     const st = $('connState');
     const names = {
       disconnected: ['не подключён', 'off'], idle: ['подключён', 'on'], printing: ['печать…', 'busy'],
-      paused: ['пауза — ручка поднята', 'warn'], pausing: ['останавливаюсь…', 'warn'], waitPage: ['смените лист и нажмите «Продолжить»', 'warn'],
+      paused: ['пауза — ручка поднята', 'warn'], pausing: ['останавливаюсь…', 'warn'], finishing: ['дописываю строку…', 'busy'], waitPage: ['смените лист и нажмите «Продолжить»', 'warn'],
       done: ['готово ✓', 'on'], stopped: ['остановлено', 'warn'],
     };
     const [txt, cls] = names[name] || [name, 'on'];
     st.textContent = txt; st.className = 'pill ' + cls;
     const conn = name !== 'disconnected';
-    const busy = name === 'printing' || name === 'paused' || name === 'pausing' || name === 'waitPage';
+    const busy = name === 'printing' || name === 'paused' || name === 'pausing' || name === 'waitPage' || name === 'finishing';
     $('connect').textContent = conn ? 'Отключить' : '🔌 Подключить';
     $('printPage').disabled = $('printAll').disabled = !conn || busy;
     $('printSel').disabled = !conn || busy || !currentSelection();
     $('pauseBtn').disabled = name !== 'printing';
     $('resumeBtn').disabled = !(name === 'paused' || name === 'waitPage');
     $('stopBtn').disabled = !busy;
-    ['jogUp', 'jogDown', 'jogStart', 'setHome', 'zeroHere', 'flipX', 'flipY'].forEach(id => { $(id).disabled = !conn || busy; });
+    $('finishBtn').disabled = !(name === 'printing' || name === 'paused' || name === 'waitPage');
+    ['jogUp', 'jogDown', 'jogStart', 'setHome', 'nbCorner', 'zeroHere', 'flipX', 'flipY'].forEach(id => { $(id).disabled = !conn || busy; });
     document.querySelectorAll('.jb').forEach(b => { b.disabled = !conn || busy; });
     // во время печати нельзя менять текст и настройки — иначе картинка разойдётся с тем, что печатается
     document.querySelectorAll('#settings input, #settings select, #settings textarea, #text, #prev, #next').forEach(el => { el.disabled = busy; });
@@ -1135,6 +1142,18 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       else { sender.command('G91'); sender.command(`G0 X${dx} Y${dy} F${f}`); sender.command('G90'); }
     };
     document.querySelectorAll('.jb').forEach(b => { b.onclick = () => jog(+b.dataset.dx, +b.dataset.dy); });
+    $('nbCorner').onclick = () => {
+      if (!live.pos) { alert('Плоттер ещё не сообщил координаты — подождите секунду и нажмите снова.'); return; }
+      // ищем отступ тетради, при котором её верхний левый угол оказывается ровно под ручкой
+      const g0 = Object.assign({}, G(), { offsetX: 0, offsetY: 0 });
+      const c0 = PlotGcode.makeTransform(g0)([0, 0]);
+      const ox = Math.round((live.pos[0] - c0[0]) * 100) / 100, oy = Math.round((live.pos[1] - c0[1]) * 100) / 100;
+      $('offsetX').value = ox; $('offsetY').value = oy;
+      $('homeCorner').value = 'nb';
+      logLine(`Тетрадь привязана к ручке: её верхний левый угол — здесь (отступ от нуля X ${ox}, Y ${oy}). Дом — этот угол.`, 'info');
+      if (ox < 0 || oy < 0) logLine('Внимание: при таком положении тетрадь частично вне рабочего поля — проверьте «Ноль плоттера» и вид «Стол станка».', 'err');
+      schedule();
+    };
     $('setHome').onclick = () => {
       if (!live.pos) { alert('Плоттер ещё не сообщил координаты — подождите секунду и нажмите снова.'); return; }
       const [x, y] = live.pos.map(round2);
@@ -1231,6 +1250,10 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('pauseBtn').onclick = () => sender.pause(lns(cfg.penUp), live.pen);
     $('resumeBtn').onclick = () => sender.resume(lns(cfg.penDown));
     $('stopBtn').onclick = () => sender.stop(afterStop());
+    $('finishBtn').onclick = () => {
+      const home = cfg.penUp.split('\n').map(x => x.replace(/;.*/, '').trim()).filter(Boolean).concat(['G90', `G0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`]);
+      sender.finishLine(home);
+    };
 
     // ----- скорость письма (мм/мин, до 10000) — это то же значение, что «Подача письма» в настройках -----
     const showFeed = v => { $('speed').value = v; $('spdNum').value = v; };
