@@ -341,20 +341,27 @@
   /** Небольшая неровность буквы: размер, наклон, поворот, сдвиг по высоте */
   function wobble(g, n) {
     if (!jitter || !g || !g.strokes.length) return g;
-    const sc = 1 + (rnd(n, 1) - 0.5) * 0.12 * jitter;
-    const rot = (rnd(n, 2) - 0.5) * 7 * jitter * Math.PI / 180;
-    const sh = (rnd(n, 3) - 0.5) * 0.16 * jitter;
-    const dy = (rnd(n, 4) - 0.5) * 0.9 * jitter;
+    const j = jitter;
+    const sc = 1 + (rnd(n, 1) - 0.5) * 0.36 * j;              // размер ±18 %
+    const sx = sc * (1 + (rnd(n, 5) - 0.5) * 0.16 * j);       // ширина ещё ±8 %
+    const rot = (rnd(n, 2) - 0.5) * 20 * j * Math.PI / 180;   // поворот ±10°
+    const sh = (rnd(n, 3) - 0.5) * 0.5 * j;                   // наклон ±0.25
+    const dy = (rnd(n, 4) - 0.5) * 3.2 * j;                   // прыгает по высоте ±1.6 (≈0,7 мм при букве 4 мм)
+    const dx = (rnd(n, 6) - 0.5) * 1.0 * j;
+    // дрожание линий: плавная волна по точкам буквы
+    const amp = 0.45 * j, f1 = 0.9 + rnd(n, 7) * 1.2, f2 = 0.9 + rnd(n, 8) * 1.2, p1 = rnd(n, 9) * 6.28, p2 = rnd(n, 10) * 6.28;
     const cx = g.w / 2, c = Math.cos(rot), si = Math.sin(rot);
     let asc = 0, desc = 0;
     const strokes = g.strokes.map(st => st.map(([x, y]) => {
-      let X = (x - cx) * sc, Y = y * sc;
+      if (x !== x) return [x, y];                               // служебная метка (NaN) — не трогаем
+      const wx = x + amp * Math.sin(y * f1 + p1), wy = y + amp * Math.sin(x * f2 + p2);
+      let X = (wx - cx) * sx, Y = wy * sc;
       X += Y * sh;
-      const xr = X * c - Y * si + cx, yr = X * si + Y * c + dy;
+      const xr = X * c - Y * si + cx + dx, yr = X * si + Y * c + dy;
       if (yr > asc) asc = yr; if (-yr > desc) desc = -yr;
       return [xr, yr];
     }));
-    return { w: g.w * sc, strokes, asc, desc };
+    return { w: g.w * sx, strokes, asc: Math.max(asc, g.asc * sc), desc: Math.max(desc, g.desc * sc) };
   }
 
   // Печать выделенного: невидимые метки \uE000 (начало) и \uE001 (конец) переключают состояние по ходу вёрстки.
