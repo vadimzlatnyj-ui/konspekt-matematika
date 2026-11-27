@@ -44,6 +44,11 @@
         <label>Поле слева <input type="number" id="marginLeft" step="1"></label>
         <label>Поле справа <input type="number" id="marginRight" step="1"></label>
       </div>
+      <div class="nbSave">
+        <input type="text" id="nbName" placeholder="Название, например «Тетрадь 48 л.»">
+        <button id="nbSaveBtn" type="button" title="Запомнить размер, клетку и поля под этим названием">💾 Сохранить тетрадь</button>
+        <button id="nbDelBtn" type="button" class="danger" title="Удалить выбранную сохранённую тетрадь">Удалить</button>
+      </div>
       <label class="chk"><input type="checkbox" id="spread"> <b>Разворот: писать сразу на 2 страницах</b></label>
       <div class="row">
         <label>Перегородка (корешок), мм <input type="number" id="spineGap" step="0.5" min="0"></label>
@@ -312,6 +317,8 @@
           <button id="jogDown" type="button" disabled>Опустить ручку</button>
           <button id="jogStart" type="button" disabled>🏠 Ручку домой</button>
           <button id="setHome" type="button" disabled>📍 Запомнить: дом здесь</button>
+          <button id="flipY" type="button" disabled title="Если ▲ везёт к вам, а ▼ от вас — переключает верх/низ у нуля плоттера (исправит и печать)">▲▼ наоборот — исправить</button>
+          <button id="flipX" type="button" disabled title="Если ▶ везёт влево — переключает лево/право у нуля плоттера (исправит и печать)">◀▶ наоборот — исправить</button>
           <button id="zeroHere" type="button" disabled title="Плоттер будет считать текущее положение точкой 0,0">Ноль плоттера здесь (0,0)</button>
         </div>
       </div>

@@ -593,11 +593,41 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       $('text').value = SAMPLE; schedule();
     };
     $('preset').addEventListener('change', () => {
-      const p = PAGE_PRESETS[$('preset').value];
+      const v = $('preset').value;
+      const p = PAGE_PRESETS[v];
       if (p) { $('pageW').value = p[0]; $('pageH').value = p[1]; }
+      const u = userNotebooks().find(n => 'u:' + n.id === v);
+      if (u) for (const k of NB_KEYS) if (u[k] !== undefined) $(k).value = u[k];
+      $('nbDelBtn').disabled = !u;
+      if (u) $('nbName').value = u.name;
       schedule();
     });
-    ['pageW', 'pageH'].forEach(id => $(id).addEventListener('input', () => { $('preset').value = 'custom'; }));
+    $('nbSaveBtn').onclick = () => {
+      const name = $('nbName').value.trim();
+      if (!name) { $('nbName').focus(); $('nbName').placeholder = 'Сначала впишите название'; return; }
+      readForm();
+      const list = userNotebooks();
+      let nb = list.find(n => n.name.toLowerCase() === name.toLowerCase());
+      if (!nb) { nb = { id: Date.now().toString(36), name }; list.push(nb); }
+      for (const k of NB_KEYS) nb[k] = cfg[k];
+      localStorage.setItem('plotterNotebooks', JSON.stringify(list));
+      fillNotebookOptions('u:' + nb.id);
+      cfg.preset = 'u:' + nb.id; save();
+      $('nbSaveBtn').textContent = 'Сохранено ✓';
+      setTimeout(() => { $('nbSaveBtn').textContent = '💾 Сохранить тетрадь'; }, 1500);
+    };
+    $('nbDelBtn').onclick = () => {
+      const v = $('preset').value;
+      const list = userNotebooks();
+      const nb = list.find(n => 'u:' + n.id === v);
+      if (!nb || !confirm(`Удалить сохранённую тетрадь «${nb.name}»?`)) return;
+      localStorage.setItem('plotterNotebooks', JSON.stringify(list.filter(n => n !== nb)));
+      fillNotebookOptions('custom'); $('nbName').value = ''; schedule();
+    };
+    ['pageW', 'pageH'].forEach(id => $(id).addEventListener('input', () => {
+      // изменили размер вручную — это уже не готовый формат (свою тетрадь можно пересохранить под тем же названием)
+      if (!$('preset').value.startsWith('u:')) $('preset').value = 'custom';
+    }));
     $('penPreset').addEventListener('change', () => { updatePenUI(true); schedule(); });
     $('fw').addEventListener('change', schedule);
     const testPen = up => {
@@ -676,7 +706,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('pauseBtn').disabled = name !== 'printing';
     $('resumeBtn').disabled = !(name === 'paused' || name === 'waitPage');
     $('stopBtn').disabled = !busy;
-    ['jogUp', 'jogDown', 'jogStart', 'setHome', 'zeroHere'].forEach(id => { $(id).disabled = !conn || busy; });
+    ['jogUp', 'jogDown', 'jogStart', 'setHome', 'zeroHere', 'flipX', 'flipY'].forEach(id => { $(id).disabled = !conn || busy; });
     document.querySelectorAll('.jb').forEach(b => { b.disabled = !conn || busy; });
     // во время печати нельзя менять текст и настройки — иначе картинка разойдётся с тем, что печатается
     document.querySelectorAll('#settings input, #settings select, #settings textarea, #text, #prev, #next').forEach(el => { el.disabled = busy; });
@@ -873,6 +903,16 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       logLine(`Точка дома запомнена: X ${x}, Y ${y}`, 'info');
       schedule();
     };
+    const flipOrigin = axis => {
+      const c = cfg.originCorner || 'bl';
+      const v = axis === 'y' ? (c[0] === 't' ? 'b' : 't') + c[1] : c[0] + (c[1] === 'l' ? 'r' : 'l');
+      $('originCorner').value = v;
+      const names = { bl: '↙ левый нижний', tl: '↖ левый верхний', br: '↘ правый нижний', tr: '↗ правый верхний' };
+      logLine(`Ноль плоттера теперь: ${names[v]}. Стрелки и печать перевёрнуты по ${axis === 'y' ? 'вертикали' : 'горизонтали'} — проверьте ещё раз.`, 'info');
+      schedule();
+    };
+    $('flipY').onclick = () => flipOrigin('y');
+    $('flipX').onclick = () => flipOrigin('x');
     $('zeroHere').onclick = () => {
       if (!confirm('Сделать текущее положение ручки точкой 0,0 плоттера?\n\nНужно, если после включения плоттер считает нулём не тот угол. ' +
         'Обычно ноль — левый нижний (ближний левый) угол рабочего поля.')) return;
@@ -1031,6 +1071,32 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   };
   $('fontSel').addEventListener('change', () => { $('fontDel').disabled = $('fontSel').value === 'builtin'; });
 
+  // ---------- свои тетради (размер, клетка, поля) под своими названиями ----------
+  const NB_KEYS = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight'];
+  function userNotebooks() {
+    try { const l = JSON.parse(localStorage.getItem('plotterNotebooks') || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+  }
+  function fillNotebookOptions(selected) {
+    const sel = $('preset');
+    const builtin = [['notebook', 'Школьная тетрадь 170×205'], ['a5', 'A5 148×210'], ['a4', 'A4 210×297'], ['general', 'Общая тетрадь 165×205']];
+    sel.innerHTML = '';
+    const add = (v, t, parent) => { const o = document.createElement('option'); o.value = v; o.textContent = t; (parent || sel).appendChild(o); };
+    const mine = userNotebooks();
+    if (mine.length) {
+      const g = document.createElement('optgroup'); g.label = 'Мои тетради';
+      for (const n of mine) add('u:' + n.id, `${n.name} — ${n.pageW}×${n.pageH}`, g);
+      sel.appendChild(g);
+    }
+    const g2 = document.createElement('optgroup'); g2.label = 'Стандартные';
+    for (const [v, t] of builtin) add(v, t, g2);
+    sel.appendChild(g2);
+    add('custom', 'Свой размер (не сохранён)');
+    sel.value = selected && Array.from(sel.options).some(o => o.value === selected) ? selected : 'custom';
+    const u = mine.find(n => 'u:' + n.id === sel.value);
+    $('nbDelBtn').disabled = !u;
+    if (u) $('nbName').value = u.name;
+  }
+
   // ---------- самообновление (только в настольной программе) ----------
   function initUpdates() {
     if (!window.desktop) return;
@@ -1061,6 +1127,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     };
   }
 
+  fillNotebookOptions(cfg.preset);
   fillForm();
   // при первом открытии (или если поле пустое) — демонстрационный текст
   const savedText = localStorage.getItem('plotterText');

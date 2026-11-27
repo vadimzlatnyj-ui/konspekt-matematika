@@ -1,23 +1,23 @@
 {
-  "version": "0c34ccd0a057",
-  "built": 1795771349596,
-  "date": "2026-11-27T09:22:29.596Z",
-  "notes": "Таблица значений x и y рядом с графиком вместо рамки",
+  "version": "876e81ddba2a",
+  "built": 1795802757089,
+  "date": "2026-11-27T18:05:57.089Z",
+  "notes": "Свои тетради с названиями; исправление направлений стрелок",
   "files": [
     {
       "path": "index.html",
-      "size": 24698,
-      "sha256": "a48c2f368c959a13d61a148e8b9a857ffa377b7aa388a70dd359dd75f994da5e"
+      "size": 25749,
+      "sha256": "3d46f4a9a8a6977a05dacb92e59759561a7115da9168dbf8a6b14e50abf2d010"
     },
     {
       "path": "css/style.css",
-      "size": 5977,
-      "sha256": "c3fe574d1b3c0269809796f57d26f9a4454122a5eb10bd2943338e89921f034c"
+      "size": 6157,
+      "sha256": "1e1a0cdf0155cc5f64aece58b1559bfce58c6037252e64807e1be2af8db213da"
     },
     {
       "path": "js/app.js",
-      "size": 62342,
-      "sha256": "10ed2e95a3feb180fa2d3ee69825ee9a1804a979cf7a0dd85e7b84aa9e42a65b"
+      "size": 66432,
+      "sha256": "ce10f3336d75886a2ee71b1abb3804ad3b3d97f552a332847fbec384879f3af9"
     },
     {
       "path": "js/customfont.js",
