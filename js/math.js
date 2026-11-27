@@ -38,6 +38,10 @@
     return out;
   }
 
+  // служебные линии (черта дроби, знак корня…) — тоже прячем, если они вне выделения
+  const hid = st => (F.hiddenNow && F.hiddenNow()) ? st.concat([[NaN, NaN]]) : st;
+  function pushS(out, ...sts) { for (const st of sts) out.strokes.push(hid(st)); }
+
   function lineStroke(pts) { return pts.map(p => [p[0], p[1]]); }
 
   // ---------------- таблицы символов ----------------
@@ -173,7 +177,7 @@
     }
 
     joinAtoms(atoms) {
-      atoms = atoms.filter(a => a);
+      atoms = atoms.filter(a => a && a.kind !== 'mark');
       if (!atoms.length) return box();
       const ls = this.opt.letterSpacing;
       const items = [], gaps = [];
@@ -198,6 +202,7 @@
     }
 
     charAtom(ch) {
+      if (ch === '\uE000' || ch === '\uE001') { F.mark && F.mark(ch); return { box: box(0), kind: 'mark' }; }
       if (!this.opt.textMode) {
         if (ch === '-') ch = '−';
         if (ch === '*') ch = '·';
@@ -221,6 +226,7 @@
       this.textFont = !!isText;
       const atoms = [];
       for (const ch of str) {
+        if (ch === '\uE000' || ch === '\uE001') { F.mark && F.mark(ch); continue; }
         if (ch === ' ') atoms.push({ box: box(this.opt.spaceWidth), kind: 'space' });
         else atoms.push({ box: glyphBox(ch, this.textFont), kind: 'ord' });
       }
@@ -412,7 +418,7 @@
         case 'not': {
           const a = this.parseArg();
           const out = box(); put(out, a, 0, 0); out.w = a.w;
-          out.strokes.push([[a.w * 0.2, -0.5], [a.w * 0.8, 8]]);
+          pushS(out, [[a.w * 0.2, -0.5], [a.w * 0.8, 8]]);
           return { box: out, kind: 'rel' };
         }
         default:
@@ -485,7 +491,7 @@
     const out = box();
     put(out, N, (W - N.w) / 2, AXIS + 1.3 + N.desc);
     put(out, D, (W - D.w) / 2, AXIS - 1.3 - D.asc);
-    if (bar) out.strokes.push([[0, AXIS], [W, AXIS]]);
+    if (bar) pushS(out, [[0, AXIS], [W, AXIS]]);
     out.w = W;
     return out;
   }
@@ -503,7 +509,7 @@
     const x0 = shift;
     const tickY = Math.min(h * 0.45, 4.5);
     const cx = x0 + 4.6;
-    out.strokes.push([[x0, tickY], [x0 + 1.2, tickY + 0.9], [x0 + 2.6, -d], [x0 + 4.2, h], [cx + c.w + 0.6, h]]);
+    pushS(out, [[x0, tickY], [x0 + 1.2, tickY + 0.9], [x0 + 2.6, -d], [x0 + 4.2, h], [cx + c.w + 0.6, h]]);
     put(out, c, cx, 0);
     out.w = cx + c.w + 0.8;
     out.asc = Math.max(out.asc, h);
@@ -521,22 +527,22 @@
     const mid = c.w / 2;
     switch (kind) {
       case 'vec':
-        out.strokes.push([[x0, y], [x0 + w, y]]);
-        out.strokes.push([[x0 + w - 1.3, y + 0.8], [x0 + w, y], [x0 + w - 1.3, y - 0.8]]);
+        pushS(out, [[x0, y], [x0 + w, y]]);
+        pushS(out, [[x0 + w - 1.3, y + 0.8], [x0 + w, y], [x0 + w - 1.3, y - 0.8]]);
         out.asc = Math.max(out.asc, y + 0.8); break;
       case 'bar':
-        out.strokes.push([[x0, y], [x0 + w, y]]); out.asc = Math.max(out.asc, y); break;
+        pushS(out, [[x0, y], [x0 + w, y]]); out.asc = Math.max(out.asc, y); break;
       case 'hat':
-        out.strokes.push([[mid - 1.6, y - 0.2], [mid, y + 1.2], [mid + 1.6, y - 0.2]]); out.asc = Math.max(out.asc, y + 1.2); break;
+        pushS(out, [[mid - 1.6, y - 0.2], [mid, y + 1.2], [mid + 1.6, y - 0.2]]); out.asc = Math.max(out.asc, y + 1.2); break;
       case 'tilde':
-        out.strokes.push([[mid - 2, y], [mid - 1, y + 0.7], [mid, y + 0.3], [mid + 1, y - 0.1], [mid + 2, y + 0.6]]); out.asc = Math.max(out.asc, y + 0.8); break;
+        pushS(out, [[mid - 2, y], [mid - 1, y + 0.7], [mid, y + 0.3], [mid + 1, y - 0.1], [mid + 2, y + 0.6]]); out.asc = Math.max(out.asc, y + 0.8); break;
       case 'dot':
-        out.strokes.push([[mid, y], [mid, y + 0.4]]); out.asc = Math.max(out.asc, y + 0.4); break;
+        pushS(out, [[mid, y], [mid, y + 0.4]]); out.asc = Math.max(out.asc, y + 0.4); break;
       case 'ddot':
-        out.strokes.push([[mid - 0.9, y], [mid - 0.9, y + 0.4]], [[mid + 0.9, y], [mid + 0.9, y + 0.4]]); out.asc = Math.max(out.asc, y + 0.4); break;
+        pushS(out, [[mid - 0.9, y], [mid - 0.9, y + 0.4]], [[mid + 0.9, y], [mid + 0.9, y + 0.4]]); out.asc = Math.max(out.asc, y + 0.4); break;
       case 'under': {
         const yy = -Math.max(c.desc, 0) - 1;
-        out.strokes.push([[x0, yy], [x0 + w, yy]]); out.desc = Math.max(out.desc, -yy); break;
+        pushS(out, [[x0, yy], [x0 + w, yy]]); out.desc = Math.max(out.desc, -yy); break;
       }
     }
     return out;
@@ -547,11 +553,11 @@
     if (ch === '.' || !ch) return box();
     if (ch === '|') {
       const top = Math.max(asc, 9) + 0.8, bot = -Math.max(desc, 1.5) - 0.8;
-      return box(1, top, -bot, [[[0.5, bot], [0.5, top]]]);
+      return box(1, top, -bot, [[[0.5, bot], [0.5, top]]].map(hid));
     }
     if (ch === '∥') {
       const top = Math.max(asc, 9) + 0.8, bot = -Math.max(desc, 1.5) - 0.8;
-      return box(2.5, top, -bot, [[[0.5, bot], [0.5, top]], [[2, bot], [2, top]]]);
+      return box(2.5, top, -bot, [[[0.5, bot], [0.5, top]], [[2, bot], [2, top]]].map(hid));
     }
     const g = glyphBox(ch);
     const natTop = g.asc, natBot = -g.desc;

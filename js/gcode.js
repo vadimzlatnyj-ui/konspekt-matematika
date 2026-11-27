@@ -182,7 +182,7 @@
   /** Полная программа: несколько страниц с паузами между ними */
   function program(pages, cfg, which) {
     const total = pages.length;
-    const list = which == null ? pages.map((p, i) => i) : [which];
+    const list = which == null ? pages.map((p, i) => i) : Array.isArray(which) ? which : [which];
     const out = [], meta = [];
     const none = n => { while (meta.length < n) meta.push({ page: -1, stroke: -1, pen: false }); };
     const hdr = t => lines(t.replace(/\{startX\}/g, +cfg.startX || 0).replace(/\{startY\}/g, +cfg.startY || 0).replace(/\{pages\}/g, total).replace(/\{page\}/g, list.length === 1 ? list[0] + 1 : 1));

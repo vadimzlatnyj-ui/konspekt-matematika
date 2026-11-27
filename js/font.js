@@ -357,7 +357,23 @@
     return { w: g.w * sc, strokes, asc, desc };
   }
 
-  function getGlyph(ch, isText) {
+  // Печать выделенного: невидимые метки \uE000 (начало) и \uE001 (конец) переключают состояние по ходу вёрстки.
+  // Линии вне выделения помечаются точкой [NaN, NaN] в конце — она переживает все сдвиги и масштабы.
+  let selActive = false, selVisible = true;
+  function beginSelection(active) { selActive = !!active; selVisible = !active; }
+  function mark(ch) { if (ch === '\uE000') selVisible = true; else if (ch === '\uE001') selVisible = false; }
+  function hiddenNow() { return selActive && !selVisible; }
+  function getVisible() { return selVisible; }
+  function setVisible(v) { selVisible = !!v; }
+  const HID = [NaN, NaN];
+  function tagHidden(g) {
+    if (!g || !hiddenNow()) return g;
+    return { w: g.w, asc: g.asc, desc: g.desc, strokes: g.strokes.map(st => st.concat([HID])) };
+  }
+
+  function getGlyph(ch, isText) { return tagHidden(getGlyph0(ch, isText)); }
+
+  function getGlyph0(ch, isText) {
     const hand = ch !== ' ' && (isText || customMath || (mathMode === 'digits' && ch >= '0' && ch <= '9'));
     if (hand && (custom || mixFont || jitter)) {
       const n = counter++;
@@ -391,5 +407,5 @@
     return { w: 4, strokes: [[[0, 0], [4, 0], [4, 6], [0, 6], [0, 0]]], asc: 6, desc: 0 };
   }
 
-  root.PlotFont = { getGlyph, setCustom, setMix, beginLayout, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
+  root.PlotFont = { getGlyph, setCustom, setMix, beginLayout, beginSelection, mark, hiddenNow, getVisible, setVisible, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
 })(typeof window !== 'undefined' ? window : globalThis);

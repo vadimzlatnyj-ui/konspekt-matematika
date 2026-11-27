@@ -86,19 +86,28 @@
       if (s.type === 'text') {
         s.src.split('\n').forEach((line, li) => {
           if (li > 0) newline();
-          const trimmed = line.trim();
+          const MK = /[\uE000\uE001]/g;
+          const trimmed = line.replace(MK, '').trim();
+          // для блоков (график, рисунок): виден, если выделение касается этой строки
+          const touch = () => {
+            const F = root.PlotFont;
+            if (!F || !F.hiddenNow) return false;
+            const vis = !F.hiddenNow() || /[\uE000\uE001]/.test(line);
+            for (const m of line.match(MK) || []) F.mark(m);
+            return !vis;
+          };
           if (/^(\\newpage|\\pagebreak|\\clearpage|-{3}\s*page\s*-{3}|={3,}|\[страница\]|\[page\])$/i.test(trimmed)) {
             cur = null; nl = 1; paras.push({ kind: 'pagebreak' }); return;
           }
-          if (!trimmed) return;
+          if (!trimmed) { for (const m of line.match(MK) || []) root.PlotFont && root.PlotFont.mark(m); return; }
           const im = /^\[\s*(рисунок|картинка|image|picture)\s*[:：]\s*([\w-]+)\s*(.*)\]$/i.exec(trimmed);
           if (im) {
             const w = /ширина\s*[:=]?\s*([\d.]+)/i.exec(im[3]);
-            paras.push({ kind: 'image', id: im[2], width: w ? +w[1] : 0, left: /слева|left/i.test(im[3]) });
+            paras.push({ kind: 'image', id: im[2], width: w ? +w[1] : 0, left: /слева|left/i.test(im[3]), hidden: touch() });
             cur = null; nl = 0; return;
           }
           const gm = /^\[\s*(график|graph|plot)\s*[:：]?\s*(.*)\]$/i.exec(trimmed);
-          if (gm) { paras.push({ kind: 'graph', spec: gm[2] }); cur = null; nl = 0; return; }
+          if (gm) { paras.push({ kind: 'graph', spec: gm[2], hidden: touch() }); cur = null; nl = 0; return; }
           for (const part of line.split(/(\s+)/)) {
             if (!part) continue;
             if (/^\s+$/.test(part)) { if (cur) cur.tokens.push({ t: 'space' }); continue; }
@@ -234,7 +243,7 @@
         if (im.h > maxH) im = root.PlotImages.strokesMM(p.id, width * maxH / im.h);   // слишком высокий — уменьшаем
         const y = placeLine(im.h + 1, 0);
         const x = page.margins.left + (p.left ? 0 : (avail - im.w) / 2);
-        for (const st of im.strokes) { page.strokes.push(st.map(([px, py]) => [x + px, y - py])); page.lineOf.push(page.lines); }
+        for (const st of im.strokes) { const t = st.map(([px, py]) => [x + px, y - py]); if (p.hidden) t.push([NaN, NaN]); page.strokes.push(t); page.lineOf.push(page.lines); }
         continue;
       }
       if (p.kind === 'graph') {
@@ -250,8 +259,12 @@
           prefix: opt.graphPrefix || 'Рис.', number: graphNo + (+opt.graphStart || 1),
         };
         let r;
+        // подписи осей строятся сейчас — выделен ли график, решено при разборе строки
+        const F = root.PlotFont, vis0 = F && F.getVisible ? F.getVisible() : true;
+        if (F && F.setVisible) F.setVisible(!p.hidden);
         try { r = root.PlotGraph.build(p.spec, env); }
         catch (e) { warnings.push('график: ' + e.message); continue; }
+        finally { if (F && F.setVisible) F.setVisible(vis0); }
         if (r.usedNumber) graphNo++;
         warnings.push(...r.warnings);
         const g = r.box;
@@ -264,7 +277,7 @@
           if (nx < page.margins.left) nx += c;
           if (nx + g.w <= opt.pageW - page.margins.right + 0.01 || nx <= x) x = nx;
         }
-        for (const st of g.strokes) { page.strokes.push(st.map(([px, py]) => [x + px, y - py])); page.lineOf.push(page.lines); }
+        for (const st of g.strokes) { const t = st.map(([px, py]) => [x + px, y - py]); if (p.hidden) t.push([NaN, NaN]); page.strokes.push(t); page.lineOf.push(page.lines); }
         continue;
       }
       if (p.kind === 'display') {
@@ -313,6 +326,10 @@
       flushLine();
     }
     if (!pages.length) newPage();
+    for (const pg of pages) {
+      pg.hidden = pg.strokes.map(st => st.some(q => q[0] !== q[0]));
+      pg.strokes = pg.strokes.map(st => st.filter(q => q[0] === q[0]));
+    }
     return { pages, warnings: Array.from(new Set(warnings)) };
   }
 

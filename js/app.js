@@ -171,7 +171,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       for (let i = 0; i < arr.length; i += 2) slots.push([arr[i], arr[i + 1] || null]);
     }
     return slots.map(slot => {
-      const sh = { strokes: [], lineOf: [], baselines: [], parts: [] };
+      const sh = { strokes: [], lineOf: [], baselines: [], parts: [], hidden: [] };
       slot.forEach((p, side) => {
         const dx = side * (W + gap);
         sh.parts.push({ page: p, dx, no: p ? pages.indexOf(p) : -1 });
@@ -179,6 +179,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
         p.strokes.forEach((st, i) => {
           sh.strokes.push(dx ? st.map(q => [q[0] + dx, q[1]]) : st);
           sh.lineOf.push((p.lineOf ? p.lineOf[i] : 0) + side * 100000); // сначала вся левая страница, потом правая
+          sh.hidden.push(!!(p.hidden && p.hidden[i]));
         });
         for (const b of p.baselines || []) sh.baselines.push({ y: b.y, x0: dx + p.margins.left, x1: dx + W - p.margins.right });
       });
@@ -192,6 +193,56 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     const nums = sh.parts.filter(p => p.page).map(p => p.no + (+cfg.firstPage || 1));
     if (!cfg.spread) return `Страница ${nums[0]} (${i + 1} из ${sheets.length})`;
     return `Разворот ${i + 1} из ${sheets.length}: стр. ${nums.join('–')}`;
+  }
+
+  // ---------- выделенный кусок текста: подсветка на листе и печать только его ----------
+  let selSheets = null, selRange = null, selTimer = null;
+  function currentSelection() {
+    const t = $('text');
+    const a = t.selectionStart, b = t.selectionEnd;
+    return a != null && b > a && t.value.slice(a, b).trim() ? [a, b] : null;
+  }
+  function layoutSelection(range) {
+    const text = $('text').value;
+    const marked = text.slice(0, range[0]) + '\uE000' + text.slice(range[0], range[1]) + '\uE001' + text.slice(range[1]);
+    PlotFont.beginLayout(7);
+    PlotFont.beginSelection(true);
+    try { return buildSheets(PlotLayout.layoutDocument(marked, cfg).pages); }
+    finally { PlotFont.beginSelection(false); }
+  }
+  function updateSelection() {
+    const r = currentSelection();
+    const same = (r && selRange && r[0] === selRange[0] && r[1] === selRange[1]) || (!r && !selRange);
+    if (same && (selSheets || !r)) return;
+    selRange = r;
+    selSheets = r ? layoutSelection(r) : null;
+    const n = r ? selSheets.reduce((a, sh) => a + sh.hidden.filter(h => !h).length, 0) : 0;
+    $('selInfo').textContent = r ? `Выделено ${r[1] - r[0]} символов — на листе подсвечено оранжевым (${n} линий)` : '';
+    if (typeof sender !== 'undefined' && sender) $('printSel').disabled = !sender.connected || !r || (sender.job && !sender.job.finished);
+    // перейти на страницу с выделенным, если оно не на текущей
+    if (selSheets && !(selSheets[pageIdx] && selSheets[pageIdx].hidden.some(h => !h))) {
+      const k = selSheets.findIndex(sh => sh.hidden.some(h => !h));
+      if (k >= 0 && k !== pageIdx) { pageIdx = k; render(); return; }
+    }
+    if (path) draw();
+  }
+  const scheduleSel = () => { clearTimeout(selTimer); selTimer = setTimeout(updateSelection, 250); };
+
+  /** Подсветка выделенного поверх листа */
+  function drawSelection(ctx, k, toScreen) {
+    const sh = selSheets && selSheets[pageIdx];
+    if (!sh) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(234,88,12,.9)'; ctx.lineWidth = Math.max(0.5, 2.2 / k); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    sh.strokes.forEach((st, i) => {
+      if (sh.hidden[i] || st.length < 2) return;
+      const pts = st.map(toScreen);
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let j = 1; j < pts.length; j++) ctx.lineTo(pts[j][0], pts[j][1]);
+    });
+    ctx.stroke();
+    ctx.restore();
   }
 
   // ---------- отмена / возврат (Ctrl+Z / Ctrl+Y): текст и настройки ----------
@@ -259,6 +310,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       warns.push(`Точка дома (${cfg.startX}; ${cfg.startY}) вне рабочего поля.`);
     $('warnings').innerHTML = warns.map(w => `<div>${escapeHtml(w)}</div>`).join('');
     render();
+    selRange = null; selSheets = null; scheduleSel();
     // в историю — после паузы в наборе (так слово, а не каждая буква, отменяется за раз)
     if (!hist.restoring) { clearTimeout(hist.timer); hist.timer = setTimeout(pushHistory, hist.stack.length ? 700 : 0); }
   }
@@ -425,8 +477,29 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   }
 
   /** Во время печати: напечатанное — тёмным, остальное — серым, ручка — по координатам от плоттера */
+  let selLiveCache = null;
   function drawLive(ctx, k, opts) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (live.sel && live.sel[pageIdx]) {
+      // печатается только выделенное: весь лист — бледно, выделенное — по ходу печати
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = Math.max(0.3, 1 / k);
+      ctx.beginPath();
+      for (const sg of path.segs) { if (!sg.draw) continue; ctx.moveTo(sg.pts[0][0], sg.pts[0][1]); for (let i = 1; i < sg.pts.length; i++) ctx.lineTo(sg.pts[i][0], sg.pts[i][1]); }
+      ctx.stroke();
+      const key = pageIdx + ':' + $('view').value;
+      if (!selLiveCache || selLiveCache.key !== key || selLiveCache.sel !== live.sel) {
+        const ms = PlotGcode.pageGcode(live.sel[pageIdx], G(), pageIdx + 1, sheets.length).machineStrokes;
+        const inv = PlotGcode.makeTransform(G()).inverse;
+        selLiveCache = { key, sel: live.sel, strokes: $('view').value === 'bed' ? ms : ms.map(st => st.map(inv)) };
+      }
+      selLiveCache.strokes.forEach((st, i) => {
+        ctx.strokeStyle = i < live.stroke ? '#1e3a8a' : 'rgba(234,88,12,.55)';
+        ctx.lineWidth = Math.max(0.3, (i < live.stroke ? 1.2 : 1) / k);
+        ctx.beginPath(); ctx.moveTo(st[0][0], st[0][1]); for (let j = 1; j < st.length; j++) ctx.lineTo(st[j][0], st[j][1]); ctx.stroke();
+      });
+      if (live.pos) { const [px, py] = opts.fromMachine(live.pos); drawPen(ctx, k, px, py, live.pen, !!opts.yUp); }
+      return;
+    }
     for (const done of [false, true]) {
       ctx.strokeStyle = done ? '#1e3a8a' : '#cbd5e1';
       ctx.lineWidth = Math.max(0.3, (done ? 1.2 : 1) / k);
@@ -588,6 +661,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       });
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
+    drawSelection(ctx, k, q => q);
     const inv = PlotGcode.makeTransform(G()).inverse;
     drawPath(ctx, k, {
       fromMachine: inv,
@@ -648,6 +722,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       ctx.fillText(t, Math.max(2, Math.min(c.width - w - 2, pt.x + 4 * dpr)), Math.max(14 * dpr, Math.min(c.height - 4 * dpr, pt.y + (dy || -4) * dpr)));
       ctx.restore();
     };
+    drawSelection(ctx, k, tf);
     drawPath(ctx, k, { clamp: p => p, fromMachine: p => p, text, lw: 1, yUp: !originTop() });
     text('0,0 плоттера', 0, 0, '#475569', originTop() ? 16 : -6);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -705,6 +780,8 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       el.addEventListener('change', schedule);
     });
     $('text').addEventListener('input', schedule);
+    ['select', 'keyup', 'mouseup'].forEach(ev => $('text').addEventListener(ev, scheduleSel));
+    document.addEventListener('selectionchange', () => { if (document.activeElement === $('text')) scheduleSel(); });
     $('docFile').onchange = async e => {
       const file = e.target.files[0]; e.target.value = '';
       if (!file) return;
@@ -865,6 +942,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     const busy = name === 'printing' || name === 'paused' || name === 'pausing' || name === 'waitPage';
     $('connect').textContent = conn ? 'Отключить' : '🔌 Подключить';
     $('printPage').disabled = $('printAll').disabled = !conn || busy;
+    $('printSel').disabled = !conn || busy || !currentSelection();
     $('pauseBtn').disabled = name !== 'printing';
     $('resumeBtn').disabled = !(name === 'paused' || name === 'waitPage');
     $('stopBtn').disabled = !busy;
@@ -1109,11 +1187,43 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       const out = outOfField(prog.lines);
       if (out && !confirm(`Печать выходит за рабочее поле плоттера (${cfg.bedW} × ${cfg.bedH} мм):\n${out}.\n\n` +
         'Плоттер может упереться в край. Проверьте «X/Y угла» тетради и размер поля.\nВсё равно печатать?')) return;
-      live.active = true; live.page = which == null ? 0 : which; live.stroke = -1; live.pen = false;
+      live.active = true; live.page = which == null ? 0 : which; live.stroke = -1; live.pen = false; live.sel = null;
       if (pageIdx !== live.page) { pageIdx = live.page; render(); }
       $('printProg').value = 0;
       sender.start(prog.lines, prog.meta);
       sender.setFeed(cfg.feedDraw);
+    };
+    $('printSel').onclick = () => {
+      const r = currentSelection() || selRange;
+      if (!r) { alert('Сначала выделите мышью кусок текста в поле слева.'); return; }
+      if ($('selMode').value === 'start') {
+        // выделенное — как отдельный текст с начала листа
+        PlotFont.beginLayout(7);
+        const sub = buildSheets(PlotLayout.layoutDocument($('text').value.slice(r[0], r[1]), cfg).pages);
+        const prog = PlotGcode.program(sub, G(), null);
+        const out = outOfField(prog.lines);
+        if (out && !confirm(`Печать выходит за рабочее поле плоттера:\n${out}.\nВсё равно печатать?`)) return;
+        live.active = false;
+        logLine(`Печатаю выделенное с начала листа (${sub.length} стр.)`, 'info');
+        sender.start(prog.lines, prog.meta.map(m => Object.assign({}, m, { page: -1 })));
+        return;
+      }
+      // на своём месте: те же координаты, только линии выделенного
+      const ss = layoutSelection(r);
+      const only = ss.map(sh => Object.assign({}, sh, {
+        strokes: sh.strokes.filter((st, i) => !sh.hidden[i]),
+        lineOf: sh.lineOf.filter((v, i) => !sh.hidden[i]),
+      }));
+      const list = only.map((sh, i) => (sh.strokes.length ? i : -1)).filter(i => i >= 0);
+      if (!list.length) { alert('В выделенном нечего писать.'); return; }
+      const prog = PlotGcode.program(only, G(), list);
+      const out = outOfField(prog.lines);
+      if (out && !confirm(`Печать выходит за рабочее поле плоттера:\n${out}.\nВсё равно печатать?`)) return;
+      live.active = true; live.page = list[0]; live.stroke = -1; live.pen = false; live.sel = only;
+      if (pageIdx !== live.page) { pageIdx = live.page; render(); }
+      $('printProg').value = 0;
+      logLine(`Печатаю только выделенное, на своём месте (страниц: ${list.length})`, 'info');
+      sender.start(prog.lines, prog.meta);
     };
     $('printPage').onclick = () => startPrint(pageIdx);
     $('printAll').onclick = () => startPrint(null);

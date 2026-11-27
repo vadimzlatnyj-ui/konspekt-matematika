@@ -255,6 +255,7 @@
       <label class="filebtn" title="Перенести конспект из файла Word (.docx), PDF или текстового файла">📥 Открыть Word / PDF<input type="file" id="docFile" accept=".docx,.pdf,.txt,.md,.tex,.doc,.png,.jpg,.jpeg"></label>
       <label class="filebtn" title="Вставить картинку (PNG, JPG) в место курсора — она превратится в линии для ручки">🖼 Рисунок<input type="file" id="imgFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp"></label>
       <span id="docInfo" class="hint"></span>
+      <span id="selInfo" class="hint"></span>
       <span class="hint">Формулы в <code>$…$</code>, <code>$$…$$</code>, <code>\(…\)</code>, <code>\[…\]</code>. Новая страница — строка <code>\newpage</code>.</span>
     </div>
     <textarea id="text" spellcheck="false"></textarea>
@@ -296,6 +297,11 @@
       <div class="bar">
         <button id="printPage" type="button" class="primary" disabled>▶ Печатать эту страницу</button>
         <button id="printAll" type="button" disabled>▶ Печатать все</button>
+        <button id="printSel" type="button" disabled title="Сначала выделите мышью кусок текста слева">▶ Печатать выделенное</button>
+        <select id="selMode" title="Где писать выделенное">
+          <option value="place">на своём месте</option>
+          <option value="start">с начала листа</option>
+        </select>
         <button id="pauseBtn" type="button" disabled>⏸ Пауза</button>
         <button id="resumeBtn" type="button" disabled>▶ Продолжить</button>
         <button id="stopBtn" type="button" class="danger" disabled>⏹ Стоп</button>

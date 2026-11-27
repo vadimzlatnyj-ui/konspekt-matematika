@@ -1,13 +1,13 @@
 {
-  "version": "e0453ce25786",
-  "built": 1795805039006,
-  "date": "2026-11-27T18:43:59.006Z",
-  "notes": "Два шрифта вперемешку и «небрежность» почерка",
+  "version": "a05bb942d8b7",
+  "built": 1795805321899,
+  "date": "2026-11-27T18:48:41.899Z",
+  "notes": "Печать только выделенного текста",
   "files": [
     {
       "path": "index.html",
-      "size": 27843,
-      "sha256": "0d3050e3ca93b03e07757a908355a523e1aacd638d41b6f69570b61182027d28"
+      "size": 28312,
+      "sha256": "4f955ca977114384329f46bab45761c7eb3fb570044b2041862d80d4c841fe46"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 77934,
-      "sha256": "7435e49937a6230fcec1620669ef706eacfee7e6d5516f639345a3fd04bb750b"
+      "size": 84604,
+      "sha256": "0249ced40b1bd276dfd6e75d7335aaf6f6a2713f83b8b446bc3b94880c31803c"
     },
     {
       "path": "js/customfont.js",
@@ -26,13 +26,13 @@
     },
     {
       "path": "js/font.js",
-      "size": 18991,
-      "sha256": "9431dda7e6f7e838b7d892b0aeed122e156ecd3fdbe1cab3f66bc2a33a48ebdc"
+      "size": 20072,
+      "sha256": "1fcacc5a6f31cd30824c69b378f17e545e52c1d406dc05f1816e19e30d85ea56"
     },
     {
       "path": "js/gcode.js",
-      "size": 9802,
-      "sha256": "f224dc98d7e295d145a66f2a2f1e626a0f9243f4aff0f9f907ec43dec3990c9a"
+      "size": 9833,
+      "sha256": "1a0b4b3c2f7e73d5617961dce678fa5ce25f6e7cb779bbba70305299e7f41e16"
     },
     {
       "path": "js/graph.js",
@@ -51,13 +51,13 @@
     },
     {
       "path": "js/layout.js",
-      "size": 15192,
-      "sha256": "5d27e5a1b0b262bf37f06ebcb22fcc1c0cf9231360a0f52f70fa4fe8b0a6ee93"
+      "size": 16421,
+      "sha256": "43f91e77825d2d422c7c707d89bdbfd93afe16def12b9688d8176a02fd055406"
     },
     {
       "path": "js/math.js",
-      "size": 29502,
-      "sha256": "fc81496fa3a2c923b730cd7e65cc050844e36fee54b4e2510a9936dc5393d0ce"
+      "size": 29988,
+      "sha256": "706f350a74cbd02127d1d6dc90f397251af485ea8d498d834d8669921a2b1343"
     },
     {
       "path": "js/serial.js",
