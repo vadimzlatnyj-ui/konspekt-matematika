@@ -168,17 +168,20 @@
     let graphNo = 0;      // сколько графиков уже пронумеровано
 
     const marginsFor = idx => {
+      // поле с красной линией — большее из двух чисел «Поле слева» / «Поле справа», другое — у другого края
+      const wide = Math.max(+opt.marginLeft || 0, +opt.marginRight || 0), narrow = Math.min(+opt.marginLeft || 0, +opt.marginRight || 0);
       if (opt.spread) {
-        // разворот: широкое поле (с красной линией) = «Поле справа», узкое = «Поле слева»;
-        // где широкое — снаружи (у краёв), внутри (у корешка), справа или слева на обеих страницах
+        // разворот: широкое поле — снаружи (у левой страницы слева, у правой справа), внутри (у корешка), справа или слева
         const isLeft = (idx + (opt.spreadStart === 'right' ? 1 : 0)) % 2 === 0;
-        const wide = opt.marginRight, narrow = opt.marginLeft;
         const wideOnLeft = { outer: isLeft, inner: !isLeft, right: false, left: true }[opt.spreadMargins || 'outer'];
         return wideOnLeft ? { left: wide, right: narrow } : { left: narrow, right: wide };
       }
-      const even = (idx + (opt.firstPage || 1)) % 2 === 0;
-      if (opt.mirrorMargins && even) return { left: opt.marginRight, right: opt.marginLeft };
-      return { left: opt.marginLeft, right: opt.marginRight };
+      if (opt.mirrorMargins) {
+        // отдельные страницы тетради: нечётная (1, 3, …) — правая страница, поле справа; чётная — левая, поле слева
+        const pageNo = idx + (+opt.firstPage || 1);
+        return pageNo % 2 === 1 ? { left: narrow, right: wide } : { left: wide, right: narrow };
+      }
+      return { left: +opt.marginLeft || 0, right: +opt.marginRight || 0 };
     };
     const newPage = () => {
       page = { index: pages.length, strokes: [], lineOf: [], baselines: [], lines: 0, margins: marginsFor(pages.length) };
