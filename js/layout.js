@@ -227,7 +227,7 @@
           maxH: opt.pageH - opt.marginTop - opt.marginBottom - opt.capHeight * 2,
           textBox: (str, k) => M.scaleBox(M.layoutTextWord(str, mopt), s * k),
           mathBox: (src, k) => M.scaleBox(M.layoutMath(src, mopt), s * k),
-          frame: opt.graphFrame !== false, numbered: opt.graphNumber !== false,
+          frame: !!opt.graphFrame, numbered: !!opt.graphNumber, table: opt.graphTable !== false,
           prefix: opt.graphPrefix || 'Рис.', number: graphNo + (+opt.graphStart || 1),
         };
         let r;

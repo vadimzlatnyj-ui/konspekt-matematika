@@ -148,7 +148,8 @@
         <label>Масштаб индексов <input type="number" id="scriptScale" step="0.05"></label>
       </div>
       <p class="hint" style="margin-top:8px"><b>Графики:</b></p>
-      <label class="chk"><input type="checkbox" id="graphFrame"> В рамке (прямоугольник вокруг графика)</label>
+      <label class="chk"><input type="checkbox" id="graphTable"> Таблица значений x и y рядом с графиком</label>
+      <label class="chk"><input type="checkbox" id="graphFrame"> Рамка вокруг графика</label>
       <div class="row">
         <label class="chk"><input type="checkbox" id="graphNumber"> Нумеровать</label>
         <label>Подпись <input type="text" id="graphPrefix" style="width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:5px"></label>
@@ -245,7 +246,7 @@
         <code>[график: y = x^2 - 2x; x от -3 до 4; y от -2 до 8]</code><br>
         Несколько функций: <code>y = sin x; y = cos x</code>. Ещё можно: <code>точки (1; -1) (3; 3)</code>,
         <code>асимптоты x = 0, y = 1</code>, <code>шаг 2</code> (или <code>шаг y 5</code>), <code>размер 12x8</code> (в клетках),
-        <code>слева</code>, <code>без цифр</code>, <code>подписать</code>, <code>название Парабола</code>, <code>без рамки</code>, <code>без номера</code>, <code>номер 5</code>.<br>
+        <code>слева</code>, <code>без цифр</code>, <code>подписать</code>, <code>таблица -2 -1 0 1 2</code> (свои x для таблицы), <code>таблица снизу</code>, <code>без таблицы</code>, <code>название Парабола</code>, <code>рамка</code>, <code>номер 5</code>.<br>
         Функции: <code>sqrt abs sin cos tg ctg arcsin arctg ln lg log_2 exp</code>, <code>pi</code>, <code>e</code>, <code>|x|</code>,
         умножение можно не писать: <code>2x</code>, <code>3sin x</code>. По умолчанию 1 единица = 1 клетка.</p>
     </details>

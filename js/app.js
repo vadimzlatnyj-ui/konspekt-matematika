@@ -61,7 +61,7 @@
     footer: 'G0 X{startX} Y{startY}\nM2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
     spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMath: false,
-    originCorner: 'bl', homeCorner: 'tl', graphFrame: true, graphNumber: true, graphPrefix: 'Рис.', graphStart: 1,
+    originCorner: 'bl', homeCorner: 'tl', graphFrame: false, graphNumber: false, graphTable: true, cfgVer: 2, graphPrefix: 'Рис.', graphStart: 1,
   };
 
   const SAMPLE = String.raw`Демонстрация: формулы и графики
@@ -96,7 +96,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
     'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra', 'graphStart'];
-  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'fontMath', 'graphFrame', 'graphNumber'];
+  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'fontMath', 'graphFrame', 'graphNumber', 'graphTable'];
   const STR = ['graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
@@ -106,6 +106,8 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   function load() {
     try {
       const c = JSON.parse(localStorage.getItem('plotterCfg') || '{}');
+      if (!(c.cfgVer >= 2)) { c.graphFrame = false; c.graphNumber = false; c.graphTable = true; }
+      c.cfgVer = 2;
       return Object.assign({}, DEFAULTS, c);
     } catch (e) { return Object.assign({}, DEFAULTS); }
   }

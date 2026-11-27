@@ -204,6 +204,13 @@
         else if (/^(по центру|центр|center)$/i.test(p)) o.align = 'center';
         else if (/^(без цифр|без подписей|no labels)$/i.test(p)) o.labels = false;
         else if (/^(подписать|подписи функций|legend)$/i.test(p)) o.legend = true;
+        else if (/^(без таблицы|no table)$/i.test(p)) o.table = false;
+        else if ((m = /^(?:таблица|table)(?:\s+(справа|сниз[уy]|под графиком|right|below))?\s*[:=]?\s*(.*)$/i.exec(p))) {
+          o.table = true;
+          if (m[1]) o.tablePos = /справа|right/i.test(m[1]) ? 'right' : 'below';
+          const xs = (m[2] || '').replace(/^x\s*[:=]?\s*/i, '').split(/[;\s]+|,\s+/).filter(Boolean);
+          if (xs.length) o.tableXs = xs.map(v => num(v));
+        }
         else if (/^(без рамки|no frame)$/i.test(p)) o.frame = false;
         else if (/^(рамка|в рамке|frame)$/i.test(p)) o.frame = true;
         else if (/^(без номера|no number)$/i.test(p)) o.nonum = true;
@@ -454,6 +461,57 @@
       }
     };
     bbox();
+
+    // ---- таблица значений x и y рядом с графиком (вне его) ----
+    const tableOn = o.table !== undefined ? o.table : env.table !== false;
+    if (tableOn && o.funcs.length) {
+      let xs = o.tableXs;
+      if (!xs) {
+        // целые точки диапазона (не больше 9 столбцов), с нулём, если он в диапазоне
+        let st = niceStep(rx, 8);
+        if (rx >= 4 && st < 1) st = 1;
+        xs = [];
+        for (let v = Math.ceil(x0 / st - 1e-9) * st; v <= x1 + 1e-9 && xs.length < 11; v += st) xs.push(Math.round(v * 1000) / 1000);
+      }
+      const k = 0.62;
+      const rows = [['x'].concat(xs.map(fmt))];
+      for (const fn of o.funcs) {
+        const nm = fn.name === 'y' && o.funcs.length > 1 ? 'y' + (o.funcs.indexOf(fn) + 1) : fn.name;
+        rows.push([nm].concat(xs.map(x => { const v = fn.f(x); return isFinite(v) ? fmt(Math.round(v * 100) / 100) : '—'; }))); // до сотых
+      }
+      const boxes = rows.map(r => r.map(t => env.textBox(t, k)));
+      const rowH = cell;                                            // строка таблицы = клетка
+      const nc = rows[0].length;
+      const colW = [];
+      for (let c = 0; c < nc; c++) {
+        const w = Math.max(...boxes.map(r => r[c].w));
+        colW.push(Math.max(cell, Math.ceil((w + 1.6) / cell) * cell));
+      }
+      const TW = colW.reduce((a, b) => a + b, 0), TH = rowH * rows.length;
+      // справа от графика, если влезает по ширине; иначе — снизу
+      const gap = cell * 2;
+      let pos = o.tablePos || ((maxX - minX) + gap + TW <= env.availW ? 'right' : 'below');
+      if (pos === 'right' && (maxX - minX) + gap + TW > env.availW) pos = 'below';
+      let tx, ty; // левый верхний угол таблицы
+      if (pos === 'right') { tx = maxX + gap; ty = (minY + maxY) / 2 + TH / 2; }
+      else { tx = Math.max(minX, (minX + maxX) / 2 - TW / 2); ty = minY - cell; }
+      // сетка
+      line([[tx, ty], [tx + TW, ty], [tx + TW, ty - TH], [tx, ty - TH], [tx, ty]]);
+      for (let r = 1; r < rows.length; r++) line([[tx, ty - r * rowH], [tx + TW, ty - r * rowH]]);
+      let cx = tx;
+      for (let c = 0; c < nc - 1; c++) { cx += colW[c]; line([[cx, ty], [cx, ty - TH]]); }
+      // значения по центру клеток
+      cx = tx;
+      for (let c = 0; c < nc; c++) {
+        for (let r = 0; r < rows.length; r++) {
+          const b = boxes[r][c];
+          const by = ty - (r + 1) * rowH + (rowH - b.asc) / 2;
+          putBox(b, cx + (colW[c] - b.w) / 2, by);
+        }
+        cx += colW[c];
+      }
+      bbox();
+    }
 
     // рамка вокруг графика и номер «Рис. N» под ней
     const frame = frameOn;

@@ -1,13 +1,13 @@
 {
-  "version": "48008847baf5",
-  "built": 1795770368230,
-  "date": "2026-11-27T09:06:08.230Z",
-  "notes": "Графики в рамке с номером «Рис. N» и названием",
+  "version": "0c34ccd0a057",
+  "built": 1795771349596,
+  "date": "2026-11-27T09:22:29.596Z",
+  "notes": "Таблица значений x и y рядом с графиком вместо рамки",
   "files": [
     {
       "path": "index.html",
-      "size": 24476,
-      "sha256": "10b93a1a7c8e855c7d259105d6a31860de859f1cde649666ef9c91272dbade07"
+      "size": 24698,
+      "sha256": "a48c2f368c959a13d61a148e8b9a857ffa377b7aa388a70dd359dd75f994da5e"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 62179,
-      "sha256": "845f63865fd56875082d761097ce036306d496066672e62942c89c6541014259"
+      "size": 62342,
+      "sha256": "10ed2e95a3feb180fa2d3ee69825ee9a1804a979cf7a0dd85e7b84aa9e42a65b"
     },
     {
       "path": "js/customfont.js",
@@ -36,13 +36,13 @@
     },
     {
       "path": "js/graph.js",
-      "size": 22188,
-      "sha256": "1441a2f39f4a409bc92f44dabdb005e8932b0bda21a004ffb31bc9ab062318ef"
+      "size": 25409,
+      "sha256": "e1c4012baa60ecac994e8d7592a411514824d4b705f244b22ef4727aa8c60bc6"
     },
     {
       "path": "js/layout.js",
-      "size": 13850,
-      "sha256": "79c5f14ae26d382f426b1b0d6e8cdfd51fbe6d66d99a9e36749b3cfa1eaec1d0"
+      "size": 13867,
+      "sha256": "206857244e17c73ae03af4b525c4f18e7a082401da3517f659f2a6b700800ad7"
     },
     {
       "path": "js/math.js",
