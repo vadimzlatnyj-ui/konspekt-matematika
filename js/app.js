@@ -714,12 +714,29 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
         else $('text').value = $('text').value.replace(/\s+$/, '') + '\n\n' + r.text;
         const nf = (r.text.match(/\$/g) || []).length;
         info.textContent = `Загружено из ${r.kind}: «${file.name}»` + (r.kind === 'Word' && nf ? ', формулы перенесены' : '') +
+          (r.pictures ? `, рисунков: ${r.pictures}` : '') + (r.skipped ? ` (не удалось перенести: ${r.skipped})` : '') +
           (r.kind === 'PDF' ? ' — проверьте формулы: из PDF они переносятся только частично' : '');
         schedule();
       } catch (err) {
         info.textContent = '';
         alert('Не удалось открыть файл: ' + err.message);
       }
+    };
+    $('imgFile').onchange = async e => {
+      const file = e.target.files[0]; e.target.value = '';
+      if (!file) return;
+      const info = $('docInfo');
+      info.textContent = 'Превращаю рисунок в линии…';
+      try {
+        const id = await PlotImages.add(new Uint8Array(await file.arrayBuffer()));
+        const im = PlotImages.info(id);
+        const line = `[рисунок: ${id}; ширина ${Math.min(90, Math.max(20, Math.round(im.w * 0.2)))}]`;
+        const t = $('text'), pos = t.selectionStart ?? t.value.length;
+        const before = t.value.slice(0, pos), after = t.value.slice(pos);
+        t.value = before + (before && !before.endsWith('\n') ? '\n' : '') + line + (after.startsWith('\n') ? '' : '\n') + after;
+        info.textContent = `Рисунок «${file.name}» вставлен (${im.paths.length} линий). Ширину можно поменять в строке [рисунок: …; ширина N].`;
+        schedule();
+      } catch (err) { info.textContent = ''; alert('Не удалось вставить рисунок: ' + err.message); }
     };
     $('demoBtn').onclick = () => {
       const cur = $('text').value.trim();
@@ -1282,4 +1299,6 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   fontOptions();
   recompute();
   initFonts();
+  // рисунки из прошлых сеансов — подгружаем и пересчитываем лист
+  PlotImages.loadAll().then(n => { if (n) recompute(); });
 })();

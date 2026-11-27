@@ -91,6 +91,12 @@
             cur = null; nl = 1; paras.push({ kind: 'pagebreak' }); return;
           }
           if (!trimmed) return;
+          const im = /^\[\s*(рисунок|картинка|image|picture)\s*[:：]\s*([\w-]+)\s*(.*)\]$/i.exec(trimmed);
+          if (im) {
+            const w = /ширина\s*[:=]?\s*([\d.]+)/i.exec(im[3]);
+            paras.push({ kind: 'image', id: im[2], width: w ? +w[1] : 0, left: /слева|left/i.test(im[3]) });
+            cur = null; nl = 0; return;
+          }
           const gm = /^\[\s*(график|graph|plot)\s*[:：]?\s*(.*)\]$/i.exec(trimmed);
           if (gm) { paras.push({ kind: 'graph', spec: gm[2] }); cur = null; nl = 0; return; }
           for (const part of line.split(/(\s+)/)) {
@@ -216,6 +222,19 @@
       if (p.kind === 'blank') {
         // пустая строка занимает строку тетради, как обычная (в том числе в начале страницы)
         placeLine(opt.capHeight, 0);
+        continue;
+      }
+      if (p.kind === 'image') {
+        if (!page) newPage();
+        const avail = textW();
+        const width = Math.min(avail, p.width || 60);
+        const maxH = opt.pageH - opt.marginTop - opt.marginBottom - opt.capHeight;
+        let im = root.PlotImages ? root.PlotImages.strokesMM(p.id, width) : null;
+        if (!im) { warnings.push(`Рисунок ${p.id} не найден — откройте документ ещё раз или вставьте рисунок кнопкой «🖼 Рисунок».`); continue; }
+        if (im.h > maxH) im = root.PlotImages.strokesMM(p.id, width * maxH / im.h);   // слишком высокий — уменьшаем
+        const y = placeLine(im.h + 1, 0);
+        const x = page.margins.left + (p.left ? 0 : (avail - im.w) / 2);
+        for (const st of im.strokes) { page.strokes.push(st.map(([px, py]) => [x + px, y - py])); page.lineOf.push(page.lines); }
         continue;
       }
       if (p.kind === 'graph') {

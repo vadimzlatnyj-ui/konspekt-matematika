@@ -239,7 +239,8 @@
       <button id="undoBtn" type="button" title="Отменить (Ctrl+Z)" disabled>↶</button>
       <button id="redoBtn" type="button" title="Вернуть (Ctrl+Y)" disabled>↷</button>
       <button id="demoBtn" type="button" title="Вставить пример с формулами и графиками">📄 Пример</button>
-      <label class="filebtn" title="Перенести конспект из файла Word (.docx), PDF или текстового файла">📥 Открыть Word / PDF<input type="file" id="docFile" accept=".docx,.pdf,.txt,.md,.tex,.doc"></label>
+      <label class="filebtn" title="Перенести конспект из файла Word (.docx), PDF или текстового файла">📥 Открыть Word / PDF<input type="file" id="docFile" accept=".docx,.pdf,.txt,.md,.tex,.doc,.png,.jpg,.jpeg"></label>
+      <label class="filebtn" title="Вставить картинку (PNG, JPG) в место курсора — она превратится в линии для ручки">🖼 Рисунок<input type="file" id="imgFile" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp"></label>
       <span id="docInfo" class="hint"></span>
       <span class="hint">Формулы в <code>$…$</code>, <code>$$…$$</code>, <code>\(…\)</code>, <code>\[…\]</code>. Новая страница — строка <code>\newpage</code>.</span>
     </div>
@@ -370,6 +371,7 @@
 <script src="js/vendor/opentype.min.js"></script>
 <script src="js/font.js"></script>
 <script src="js/customfont.js"></script>
+<script src="js/images.js"></script>
 <script src="js/math.js"></script>
 <script src="js/graph.js"></script>
 <script src="js/layout.js"></script>

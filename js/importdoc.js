@@ -142,10 +142,22 @@
     const body = doc.getElementsByTagNameNS('*', 'body')[0];
     if (!body) throw new Error('не удалось прочитать документ Word');
     const lines = [];
+    // связи документа: rId → файл картинки (word/media/…)
+    const rels = {};
+    try {
+      const rx = await unzipFile(buf, 'word/_rels/document.xml.rels');
+      if (rx) {
+        const rd = new DOMParser().parseFromString(new TextDecoder().decode(rx), 'application/xml');
+        for (const r of rd.getElementsByTagName('Relationship')) rels[r.getAttribute('Id')] = r.getAttribute('Target');
+      }
+    } catch (e) { /* без связей — без рисунков */ }
+    const pics = [];   // {key, rid, wmm}
+    const EMU_MM = 36000;
 
     function paragraph(p) {
       let out = '';
       const displays = [];
+      const picsHere = [];
       const walk = el => {
         for (const c of kids(el)) {
           const n = c.localName;
@@ -155,6 +167,21 @@
           if (n === 't') { out += c.textContent.replace(/\$/g, '\\$'); continue; }
           if (n === 'tab') { out += ' '; continue; }
           if (n === 'br' || n === 'cr') { out += '\n'; continue; }
+          if (n === 'drawing' || n === 'pict' || n === 'object') {
+            // рисунок: ссылка на картинку и её размер в документе
+            const blip = c.getElementsByTagNameNS('*', 'blip')[0] || c.getElementsByTagNameNS('*', 'imagedata')[0];
+            let rid = null;
+            if (blip) for (const a of blip.attributes) if (a.localName === 'embed' || (a.localName === 'id' && a.prefix === 'r')) rid = a.value;
+            const ext = c.getElementsByTagNameNS('*', 'extent')[0];
+            let wmm = ext ? +ext.getAttribute('cx') / EMU_MM : 0;
+            if (!wmm) {
+              const shp = c.getElementsByTagNameNS('*', 'shape')[0];
+              const m = /width:([\d.]+)pt/.exec((shp && shp.getAttribute('style')) || '');
+              if (m) wmm = +m[1] * 0.3528;
+            }
+            if (rid) { const key = `__IMG${pics.length}__`; pics.push({ key, rid, wmm: Math.round(wmm) || 60 }); picsHere.push(key); }
+            continue;
+          }
           if (n === 'sym') { out += String.fromCharCode(parseInt(c.getAttribute('w:char') || '20', 16) & 0xff || 32); continue; }
           walk(c);
         }
@@ -164,7 +191,8 @@
       out = out.replace(/[ \u00A0]{2,}/g, ' ').replace(/\$ ([,.;:!?)])/g, (m, c) => '$' + c).replace(/([(«]) \$/g, (m, c) => c + '$').trim();
       if (out) lines.push((isList ? '– ' : '') + out);
       for (const d of displays) lines.push(`$$${d}$$`);
-      if (!out && !displays.length) lines.push('');
+      for (const k of picsHere) lines.push(k);
+      if (!out && !displays.length && !picsHere.length) lines.push('');
     }
 
     for (const el of kids(body)) {
@@ -183,8 +211,26 @@
         lines.push(`$$${omml(el).trim()}$$`);
       }
     }
+    // рисунки: картинку → в линии для плоттера
+    let text = lines.join('\n');
+    let skipped = 0;
+    for (const pc of pics) {
+      let repl = '';
+      try {
+        let target = rels[pc.rid] || '';
+        target = target.replace(/^[/]/, '').replace(/^word[/]/, '');
+        if (/[.](emf|wmf)$/i.test(target)) throw new Error('формат EMF/WMF');
+        const bytes = target && await unzipFile(buf, 'word/' + target);
+        if (!bytes) throw new Error('нет файла');
+        if (!root.PlotImages) throw new Error('модуль рисунков не загружен');
+        const id = await root.PlotImages.add(bytes);
+        repl = `[рисунок: ${id}; ширина ${pc.wmm}]`;
+      } catch (e) { skipped++; repl = ''; }
+      text = text.replace(pc.key, repl);
+    }
+    docxToText.lastInfo = { pictures: pics.length - skipped, skipped };
     // не больше одной пустой строки подряд, без пустых по краям
-    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    return text.replace(/\n{3,}/g, '\n\n').trim();
   }
 
   // ================= PDF =================
@@ -271,7 +317,12 @@
     const head = new Uint8Array(buf.slice(0, 5));
     const sig = String.fromCharCode(...head);
     if (name.endsWith('.doc') && sig.charCodeAt(0) === 0xD0) throw new Error('старый формат .doc не поддерживается — откройте его в Word и сохраните как .docx');
-    if (sig.startsWith('PK')) return { text: await docxToText(buf), kind: 'Word' };
+    if (sig.startsWith('PK')) { const text = await docxToText(buf); return Object.assign({ text, kind: 'Word' }, docxToText.lastInfo || {}); }
+    if (/[.](png|jpe?g|gif|bmp|webp)$/.test(name)) {
+      const id = await root.PlotImages.add(new Uint8Array(buf));
+      const im = root.PlotImages.info(id);
+      return { text: `[рисунок: ${id}; ширина ${Math.min(90, Math.max(20, Math.round(im.w * 0.2)))}]`, kind: 'рисунок', pictures: 1 };
+    }
     if (sig.startsWith('%PDF')) return { text: await pdfToText(buf, onProgress), kind: 'PDF' };
     if (name.endsWith('.rtf')) throw new Error('RTF не поддерживается — сохраните как .docx');
     return { text: new TextDecoder().decode(buf).replace(/^﻿/, ''), kind: 'текст' };
