@@ -240,6 +240,33 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   }
   const scheduleSel = () => { clearTimeout(selTimer); selTimer = setTimeout(updateSelection, 250); };
 
+  /** Прямоугольники, в которых лежит текст: для каждой страницы листа (на развороте — две) */
+  function textBounds(sheet) {
+    const out = [];
+    for (const part of sheet.parts || []) {
+      if (!part.page || !part.page.strokes.length) continue;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const st of part.page.strokes) for (const [x, y] of st) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      if (x0 <= x1) out.push([x0 + part.dx, y0, x1 + part.dx, y1]);
+    }
+    return out;
+  }
+  function drawBounds(ctx, k, toScreen) {
+    if (!$('showBounds').checked) return;
+    const sh = sheets[pageIdx];
+    if (!sh) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(217,119,6,.9)'; ctx.lineWidth = Math.max(0.4, 1.5 / k);
+    ctx.setLineDash([3 / k * 2, 2 / k * 2]);
+    for (const [x0, y0, x1, y1] of textBounds(sh)) {
+      const pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(toScreen);
+      ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   /** Подсветка выделенного поверх листа */
   function drawSelection(ctx, k, toScreen) {
     const sh = selSheets && selSheets[pageIdx];
@@ -672,6 +699,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
     drawSelection(ctx, k, q => q);
+    drawBounds(ctx, k, q => q);
     const inv = PlotGcode.makeTransform(G()).inverse;
     drawPath(ctx, k, {
       fromMachine: inv,
@@ -733,6 +761,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       ctx.restore();
     };
     drawSelection(ctx, k, tf);
+    drawBounds(ctx, k, tf);
     drawPath(ctx, k, { clamp: p => p, fromMachine: p => p, text, lw: 1, yUp: !originTop() });
     text('0,0 плоттера', 0, 0, '#475569', originTop() ? 16 : -6);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -966,6 +995,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('connect').textContent = conn ? 'Отключить' : '🔌 Подключить';
     $('printPage').disabled = $('printAll').disabled = !conn || busy;
     $('printSel').disabled = !conn || busy || !currentSelection();
+    $('boundsBtn').disabled = !conn || busy;
     $('pauseBtn').disabled = name !== 'printing';
     $('resumeBtn').disabled = !(name === 'paused' || name === 'waitPage');
     $('stopBtn').disabled = !busy;
@@ -1290,6 +1320,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       job = { desc, text, cfg: c, list, pages: b.sheets.length, started: Date.now(), current: { page: list[0], stroke: from && from.page === list[0] ? from.n : 0 } };
       saveJob(true);
       $('resumeBar').hidden = true;
+      boundsRun = false;
       sender.start(prog.lines, prog.meta);
       sender.setFeed(cfg.feedDraw);
     }
@@ -1300,7 +1331,9 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       saveJob(false);
     };
     window.__onJobProgress = onJobProgress;
+    let boundsRun = false;
     const onJobState = name => {
+      if (boundsRun) { if (name === 'done' || name === 'stopped' || name === 'disconnected') boundsRun = false; return; }
       if (!job) return;
       if (name === 'waitPage') { const k = job.list.indexOf(job.current.page); job.current = { page: job.list[k + 1] ?? job.current.page, stroke: 0 }; saveJob(true); }
       if (name === 'done') { if (sender.job && sender.job.early) saveJob(true); else forgetJob(); }
@@ -1355,6 +1388,31 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       sender.endEarly().then(() => forgetJob());
       logLine('Печать остальных страниц отменена.', 'info');
     };
+    $('boundsBtn').onclick = () => {
+      const sh = sheets[pageIdx];
+      const boxes = sh ? textBounds(sh) : [];
+      if (!boxes.length) { alert('На этой странице нечего писать.'); return; }
+      const tf = PlotGcode.makeTransform(G());
+      const f = v => (+v.toFixed(2)).toString();
+      const dwell = 'G4 P' + (sender.firmware === 'marlin' ? 1500 : 1.5);
+      const feed = Math.min(+cfg.feedTravel || 3000, 3000);
+      const L = cfg.penUp.split('\n').map(x => x.replace(/;.*/, '').trim()).filter(Boolean).concat(['G90']);
+      boxes.forEach(([x0, y0, x1, y1], bi) => {
+        L.push(`; границы текста, страница ${bi + 1}`);
+        for (const c of [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]) {
+          const [X, Y] = tf(c);
+          L.push(`G1 X${f(X)} Y${f(Y)} F${feed}`, dwell);
+        }
+      });
+      L.push('G0 X' + f(+cfg.startX || 0) + ' Y' + f(+cfg.startY || 0));
+      const out = outOfField(L);
+      if (out && !confirm(`Границы выходят за рабочее поле плоттера:\n${out}.\nВсё равно показать?`)) return;
+      $('showBounds').checked = true; draw();
+      boundsRun = true; live.active = false;
+      logLine(`Показываю границы текста (${boxes.length === 2 ? 'обе страницы разворота' : 'страница'}): ручка поднята, остановки в углах`, 'info');
+      sender.start(L, L.map(() => ({ page: -1, stroke: -1, pen: false })));
+    };
+    $('showBounds').onchange = () => draw();
     $('finishBtn').onclick = () => {
       const home = cfg.penUp.split('\n').map(x => x.replace(/;.*/, '').trim()).filter(Boolean).concat(['G90', `G0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`]);
       sender.finishLine(home);

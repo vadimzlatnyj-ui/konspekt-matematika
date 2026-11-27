@@ -1,13 +1,13 @@
 {
-  "version": "3aa4216b0d51",
-  "built": 1795807951186,
-  "date": "2026-11-27T19:32:31.186Z",
-  "notes": "Поля: у левой страницы слева, у правой справа",
+  "version": "89fe79fd84b1",
+  "built": 1795808071542,
+  "date": "2026-11-27T19:34:31.542Z",
+  "notes": "Показ границ текста поднятой ручкой с остановками в углах",
   "files": [
     {
       "path": "index.html",
-      "size": 30729,
-      "sha256": "05f68593f048e29df7975ee17c35b7cd03a6e09b8ad206075658da66a9f57d51"
+      "size": 31180,
+      "sha256": "a1cdeb5100bdc2770e3ca37348915a94d55922258e23b938af3f23ad195f9311"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 94376,
-      "sha256": "92da87ff225839f06172312827ec9f55a228fd5efa8812d1256ff2376418a679"
+      "size": 97462,
+      "sha256": "33d098b5469e76dde4f5de2df1864cefe0bddb06b98b29c19961e863a6ce29fc"
     },
     {
       "path": "js/customfont.js",

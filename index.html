@@ -319,6 +319,7 @@
         </select>
         <button id="pauseBtn" type="button" disabled>⏸ Пауза</button>
         <button id="resumeBtn" type="button" disabled>▶ Продолжить</button>
+        <button id="boundsBtn" type="button" disabled title="Плоттер с поднятой ручкой обойдёт границы текста на этой странице (на развороте — каждой страницы) с остановками в углах">🔲 Показать границы текста</button>
         <button id="finishBtn" type="button" disabled title="Дописать строку, которую плоттер уже начал, поднять ручку и вернуться домой">⏹ Дописать строку и закончить</button>
         <button id="stopBtn" type="button" class="danger" disabled>⏹ Стоп</button>
       </div>
@@ -362,6 +363,7 @@
       <button id="next" type="button">›</button>
       <label class="chk inline"><input type="checkbox" id="showTravel"> холостые ходы</label>
       <label class="chk inline"><input type="checkbox" id="showLines" checked> строки</label>
+      <label class="chk inline"><input type="checkbox" id="showBounds"> границы текста</label>
       <select id="view">
         <option value="page">Лист</option>
         <option value="bed">Стол станка</option>
