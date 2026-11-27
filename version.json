@@ -1,13 +1,13 @@
 {
-  "version": "9bfe76446acd",
-  "built": 1795725548559,
-  "date": "2026-11-26T20:39:08.559Z",
-  "notes": "Угол нуля плоттера на выбор, дом по умолчанию — левый верхний угол",
+  "version": "48008847baf5",
+  "built": 1795770368230,
+  "date": "2026-11-27T09:06:08.230Z",
+  "notes": "Графики в рамке с номером «Рис. N» и названием",
   "files": [
     {
       "path": "index.html",
-      "size": 23730,
-      "sha256": "ac5008eb3c3821dd8f32e016f762484c740d470101d5f164b7a01e265575b75c"
+      "size": 24476,
+      "sha256": "10b93a1a7c8e855c7d259105d6a31860de859f1cde649666ef9c91272dbade07"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 61926,
-      "sha256": "c1587ece8a8578cfd3479247ab864be0f716e539b197ef25d2a5c0e15b6be710"
+      "size": 62179,
+      "sha256": "845f63865fd56875082d761097ce036306d496066672e62942c89c6541014259"
     },
     {
       "path": "js/customfont.js",
@@ -36,13 +36,13 @@
     },
     {
       "path": "js/graph.js",
-      "size": 20707,
-      "sha256": "feda1f5254f40da20e052db32e53e1f6e24b22db61c6324d32fcbaf2c1e5a391"
+      "size": 22188,
+      "sha256": "1441a2f39f4a409bc92f44dabdb005e8932b0bda21a004ffb31bc9ab062318ef"
     },
     {
       "path": "js/layout.js",
-      "size": 13548,
-      "sha256": "aca63eedb9ccd76bea43fbb89dee21ff61b9d4a6aa6f2cd86e65a9d919b1c1f6"
+      "size": 13850,
+      "sha256": "79c5f14ae26d382f426b1b0d6e8cdfd51fbe6d66d99a9e36749b3cfa1eaec1d0"
     },
     {
       "path": "js/math.js",

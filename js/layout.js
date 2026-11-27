@@ -150,6 +150,7 @@
     let baseline = 0;     // текущая базовая линия (мм от верха листа)
     let prevDesc = 0;     // нижний вынос предыдущей строки (мм)
     let lineOnPage = 0;
+    let graphNo = 0;      // сколько графиков уже пронумеровано
 
     const marginsFor = idx => {
       if (opt.spread) {
@@ -226,10 +227,13 @@
           maxH: opt.pageH - opt.marginTop - opt.marginBottom - opt.capHeight * 2,
           textBox: (str, k) => M.scaleBox(M.layoutTextWord(str, mopt), s * k),
           mathBox: (src, k) => M.scaleBox(M.layoutMath(src, mopt), s * k),
+          frame: opt.graphFrame !== false, numbered: opt.graphNumber !== false,
+          prefix: opt.graphPrefix || 'Рис.', number: graphNo + (+opt.graphStart || 1),
         };
         let r;
         try { r = root.PlotGraph.build(p.spec, env); }
         catch (e) { warnings.push('график: ' + e.message); continue; }
+        if (r.usedNumber) graphNo++;
         warnings.push(...r.warnings);
         const g = r.box;
         const y = placeLine(g.asc + 1, g.desc);

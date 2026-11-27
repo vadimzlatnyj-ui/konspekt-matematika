@@ -61,7 +61,7 @@
     footer: 'G0 X{startX} Y{startY}\nM2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
     spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMath: false,
-    originCorner: 'bl', homeCorner: 'tl',
+    originCorner: 'bl', homeCorner: 'tl', graphFrame: true, graphNumber: true, graphPrefix: 'Рис.', graphStart: 1,
   };
 
   const SAMPLE = String.raw`Демонстрация: формулы и графики
@@ -87,17 +87,17 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
 
 6. Графики
 Парабола $y = x^2 - 2x - 3$: вершина $(1; -4)$, нули $x = -1$ и $x = 3$.
-[график: y = x^2 - 2x - 3; x от -2 до 4; y от -5 до 5; размер 12x10; точки (1; -4) (-1; 0) (3; 0)]
+[график: y = x^2 - 2x - 3; x от -2 до 4; y от -5 до 5; размер 12x10; точки (1; -4) (-1; 0) (3; 0); название Парабола]
 Синус и косинус:
-[график: y = sin x; y = cos x; x от -2pi до 2pi; y от -1.5 до 1.5; размер 26x6; подписать]
+[график: y = sin x; y = cos x; x от -2pi до 2pi; y от -1.5 до 1.5; размер 26x6; подписать; название Синус и косинус]
 Гипербола $y = \frac{1}{x - 1} + 1$ и её асимптоты $x = 1$, $y = 1$:
-[график: y = 1/(x-1) + 1; x от -3 до 5; y от -3 до 5; размер 10x10; асимптоты x = 1, y = 1]`;
+[график: y = 1/(x-1) + 1; x от -3 до 5; y от -3 до 5; размер 10x10; асимптоты x = 1, y = 1; название Гипербола]`;
 
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
-    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra'];
-  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'fontMath'];
-  const STR = ['originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra', 'graphStart'];
+  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'fontMath', 'graphFrame', 'graphNumber'];
+  const STR = ['graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };

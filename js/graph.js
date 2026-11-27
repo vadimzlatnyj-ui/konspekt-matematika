@@ -204,6 +204,11 @@
         else if (/^(по центру|центр|center)$/i.test(p)) o.align = 'center';
         else if (/^(без цифр|без подписей|no labels)$/i.test(p)) o.labels = false;
         else if (/^(подписать|подписи функций|legend)$/i.test(p)) o.legend = true;
+        else if (/^(без рамки|no frame)$/i.test(p)) o.frame = false;
+        else if (/^(рамка|в рамке|frame)$/i.test(p)) o.frame = true;
+        else if (/^(без номера|no number)$/i.test(p)) o.nonum = true;
+        else if ((m = /^(?:название|заголовок|title)\s*[:=]?\s*(.+)$/i.exec(part.trim()))) o.title = m[1].trim();
+        else if ((m = /^(?:номер|number)\s*[:=]?\s*(\S+)$/i.exec(p))) o.number = m[1];
         else if ((m = /^\s*([a-zA-Z]\s*\(\s*x\s*\)|y)\s*=\s*(.+)$/.exec(p))) {
           o.funcs.push({ name: m[1].replace(/\s/g, ''), src: m[2].trim(), f: compile(m[2]) });
         } else if (/x/.test(p)) {
@@ -280,7 +285,8 @@
       if (rx * ux < 50) ux = cell * Math.max(1, Math.round(50 / (rx * cell)));
       if (rx * ux < 50) ux = 50 / rx;
     }
-    const labelRoom = 8;
+    const frameOn = o.frame !== undefined ? o.frame : env.frame !== false;
+    const labelRoom = 8 + (frameOn ? 6 : 0); // место под подписи осей и рамку
     if (rx * ux > env.availW - labelRoom) ux = (env.availW - labelRoom) / rx;
     if (o.sizeH) uy = o.sizeH * cell / ry;
     else {
@@ -442,16 +448,38 @@
 
     // габариты
     let minX = 0, maxX = W, minY = 0, maxY = H;
-    for (const s of out.strokes) for (const [x, y] of s) {
-      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+    const bbox = () => {
+      for (const s of out.strokes) for (const [x, y] of s) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    };
+    bbox();
+
+    // рамка вокруг графика и номер «Рис. N» под ней
+    const frame = frameOn;
+    let usedNumber = false;
+    if (frame) {
+      const pad = 2.5;
+      minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+      line([[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY], [minX, minY]]);
     }
+    let caption = '';
+    if (o.number) caption = `${env.prefix || 'Рис.'} ${o.number}`;
+    else if (env.numbered !== false && !o.nonum && env.number) { caption = `${env.prefix || 'Рис.'} ${env.number}`; usedNumber = true; }
+    if (o.title) caption = caption ? `${caption}. ${o.title}` : o.title;
+    if (caption) {
+      const cb = env.textBox(caption, 0.8);
+      const cx = (minX + maxX) / 2 - cb.w / 2;
+      putBox(cb, cx, minY - 2 - cb.asc);
+    }
+    bbox();
     for (const s of out.strokes) for (const p of s) p[0] -= minX;
     out.w = maxX - minX;
     out.asc = maxY;
     out.desc = -minY;
     out.plotLeft = -minX;      // где начинается поле графика (для привязки к клеткам)
     out.align = o.align;
-    return { box: out, warnings };
+    return { box: out, warnings, usedNumber };
   }
 
   root.PlotGraph = { build, compile, parseSpec };
