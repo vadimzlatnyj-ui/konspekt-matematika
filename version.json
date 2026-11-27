@@ -1,23 +1,23 @@
 {
-  "version": "c2bfaf03144c",
-  "built": 1795807163595,
-  "date": "2026-11-27T19:19:23.595Z",
-  "notes": "Поля на развороте на выбор; окно «переверните лист» с Продолжить/Отменить",
+  "version": "3ce827fcd4e2",
+  "built": 1795807864340,
+  "date": "2026-11-27T19:31:04.340Z",
+  "notes": "Продолжение печати после перезагрузки компьютера",
   "files": [
     {
       "path": "index.html",
-      "size": 30298,
-      "sha256": "f19b054e5b11a5759ea43281e3bc11e2adab2caeadf1e8a2219931db088967f5"
+      "size": 30563,
+      "sha256": "286f1836d6dce1487237a80d729149e397168971e40d8c56ee1257b081b761be"
     },
     {
       "path": "css/style.css",
-      "size": 7441,
-      "sha256": "b61850cb39298fdbbbb5da24fa80d77f73d126e412fd0eff327fe03ba4051d90"
+      "size": 7778,
+      "sha256": "d266805ac26763d2b9205caceec8edd17ad1fd32eb6e67f39d88e412525325b5"
     },
     {
       "path": "js/app.js",
-      "size": 88615,
-      "sha256": "04fa663c671151bbcac170a715957ed39c8146fb3c868eced34f355772edde94"
+      "size": 94376,
+      "sha256": "92da87ff225839f06172312827ec9f55a228fd5efa8812d1256ff2376418a679"
     },
     {
       "path": "js/customfont.js",
@@ -31,8 +31,8 @@
     },
     {
       "path": "js/gcode.js",
-      "size": 11587,
-      "sha256": "a2ef411412be99fd6c8a95845ec9c95f1a43981bca9e248afcad2da182878a06"
+      "size": 11863,
+      "sha256": "060822df901e7d2e36353424cd695d81ce668abee3463218385311c8f61c89c5"
     },
     {
       "path": "js/graph.js",
@@ -61,8 +61,8 @@
     },
     {
       "path": "js/serial.js",
-      "size": 18547,
-      "sha256": "bd00ad242247a5f17e6ead4ee6fada97fc5133f4860a7e95ecc4fdd068a77ac0"
+      "size": 18721,
+      "sha256": "393dadcc37030feb4dd0c67e69f2b38e0e01df9fde996b31742e9b4882c12ad7"
     },
     {
       "path": "js/vendor/opentype.LICENSE",

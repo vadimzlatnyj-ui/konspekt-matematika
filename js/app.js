@@ -208,8 +208,14 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     const a = t.selectionStart, b = t.selectionEnd;
     return a != null && b > a && t.value.slice(a, b).trim() ? [a, b] : null;
   }
-  function layoutSelection(range) {
-    const text = $('text').value;
+  function applyFonts(c) {
+    PlotFont.setCustom(fonts.get(c.fontSel) || null, c.fontMathMode || 'digits');
+    const f2 = c.font2Sel === 'builtin' ? 'builtin' : (fonts.get(c.font2Sel) || null);
+    PlotFont.setMix(f2 && c.font2Sel !== c.fontSel ? f2 : null, (+c.font2Ratio || 0) / 100, (+c.jitter || 0) / 100);
+  }
+
+  function layoutSelection(range, textArg) {
+    const text = textArg != null ? textArg : $('text').value;
     const marked = text.slice(0, range[0]) + '\uE000' + text.slice(range[0], range[1]) + '\uE001' + text.slice(range[1]);
     PlotFont.beginLayout(7);
     PlotFont.beginSelection(true);
@@ -293,9 +299,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   function recompute() {
     readForm(); save();
     localStorage.setItem('plotterText', $('text').value);
-    PlotFont.setCustom(fonts.get(cfg.fontSel) || null, cfg.fontMathMode || 'digits');
-    const f2 = cfg.font2Sel === 'builtin' ? 'builtin' : (fonts.get(cfg.font2Sel) || null);
-    PlotFont.setMix(f2 && cfg.font2Sel !== cfg.fontSel ? f2 : null, (+cfg.font2Ratio || 0) / 100, (+cfg.jitter || 0) / 100);
+    applyFonts(cfg);
     PlotFont.beginLayout(7);
     try {
       result = PlotLayout.layoutDocument($('text').value, cfg);
@@ -976,10 +980,12 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     // окно «переверните лист»: показываем, пока плоттер ждёт смены страницы
     $('flipBox').hidden = name !== 'waitPage';
     if (name === 'waitPage') {
-      const done = live.page + 1, total = sheets.length;
+      const jb = window.__getJob ? window.__getJob() : null;
+      const done = (jb && jb.list ? jb.list.indexOf(jb.current.page) : live.page) + 1, total = jb && jb.list ? jb.list.length : sheets.length;
       $('flipTitle').textContent = cfg.spread ? `Разворот ${done} из ${total} готов` : `Страница ${done + (cfg.firstPage - 1)} готова (${done} из ${total})`;
       beep();
     }
+    if (window.__onJobState) window.__onJobState(name);   // после заголовка окна: тут «текущая» страница сдвигается на следующую
     if (name === 'waitPage') logLine(`${cfg.spread ? 'Разворот ' + (live.page + 1) : 'Страница ' + (live.page + cfg.firstPage)} готов${cfg.spread ? '' : 'а'}. Переверните/смените лист, положите тетрадь на то же место и нажмите «Продолжить».`, 'info');
     queueDraw();
   }
@@ -1022,11 +1028,12 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       },
       progress: ({ acked, total, meta }) => {
         $('printProg').value = Math.round(acked / total * 1000);
+        if (window.__onJobProgress) window.__onJobProgress(meta);
         if (meta && meta.page >= 0) {
           live.stroke = meta.stroke; live.pen = meta.pen;
-          if (meta.page !== live.page || meta.page !== pageIdx) {
+          if (live.active && (meta.page !== live.page || meta.page !== pageIdx)) {
             live.page = meta.page;
-            if (pageIdx !== live.page) { pageIdx = live.page; render(); }
+            if (pageIdx !== live.page && sheets[live.page]) { pageIdx = live.page; render(); }
           }
         }
         queueDraw();
@@ -1221,48 +1228,117 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
         ? `X от ${round2(minX)} до ${round2(maxX)}, Y от ${round2(minY)} до ${round2(maxY)}` : null;
     };
 
-    const startPrint = which => {
-      const prog = PlotGcode.program(sheets, G(), which);
+    // ----- задание печати: что печатаем; ход запоминается, чтобы продолжить после перезагрузки -----
+    // поля, которые после перезагрузки берём из ТЕКУЩИХ настроек (положение тетради могли заново выставить)
+    const MACHINE_KEYS = ['offsetX', 'offsetY', 'originCorner', 'homeCorner', 'startX', 'startY', 'bedW', 'bedH', 'rotation',
+      'mirrorX', 'mirrorY', 'penUp', 'penDown', 'penPreset', 'penUpVal', 'penDownVal', 'penExtra', 'penDelay', 'feedDraw',
+      'feedTravel', 'travelG0', 'fw', 'baud', 'header', 'footer', 'betweenPages', 'decimals', 'joinDistance'];
+    let job = null, jobSaveTimer = null;
+    const saveJob = now => {
+      clearTimeout(jobSaveTimer);
+      const w = () => { try { if (job) localStorage.setItem('plotterJob', JSON.stringify(job)); } catch (e) { /* */ } };
+      if (now) w(); else jobSaveTimer = setTimeout(w, 800);
+    };
+    const forgetJob = () => { job = null; clearTimeout(jobSaveTimer); localStorage.removeItem('plotterJob'); $('resumeBar').hidden = true; };
+
+    /** Листы и список страниц для задания (с данными текстом и настройками) */
+    function buildJob(desc, text, c) {
+      const keep = cfg;
+      cfg = c;
+      try {
+        applyFonts(c); PlotFont.beginLayout(7);
+        let sh, list, liveSel = null, liveOff = false;
+        if (desc.type === 'selPlace') {
+          const ss = layoutSelection(desc.range, text);
+          sh = ss.map(x => Object.assign({}, x, { strokes: x.strokes.filter((st, i) => !x.hidden[i]), lineOf: x.lineOf.filter((v, i) => !x.hidden[i]) }));
+          list = sh.map((x, i) => (x.strokes.length ? i : -1)).filter(i => i >= 0);
+          liveSel = sh;
+        } else if (desc.type === 'selStart') {
+          sh = buildSheets(PlotLayout.layoutDocument(text.slice(desc.range[0], desc.range[1]), c).pages);
+          list = sh.map((x, i) => i); liveOff = true;
+        } else {
+          sh = buildSheets(PlotLayout.layoutDocument(text, c).pages);
+          list = desc.type === 'page' ? [Math.min(desc.page, sh.length - 1)] : sh.map((x, i) => i);
+        }
+        return { sheets: sh, list, liveSel, liveOff, g: G() };
+      } finally { cfg = keep; applyFonts(cfg); PlotFont.beginLayout(7); }
+    }
+
+    /** Запуск задания; from — {page, stroke}, если продолжаем прерванное */
+    function startJob(desc, saved) {
+      const text = saved ? saved.text : $('text').value;
+      const c = saved ? Object.assign({}, saved.cfg, Object.fromEntries(MACHINE_KEYS.map(k => [k, cfg[k]]))) : Object.assign({}, cfg);
+      const b = buildJob(desc, text, c);
+      if (!b.list.length) { alert('Нечего печатать.'); return; }
+      let list = b.list, g = b.g, from = null;
+      if (saved && saved.current) {
+        // несколько последних линий повторяем — плата могла не успеть их дописать
+        from = { page: saved.current.page, n: Math.max(0, (saved.current.stroke | 0) - 3) };
+        list = list.filter(i => i >= from.page);
+        if (!list.length) { alert('Всё уже напечатано.'); forgetJob(); return; }
+        g = Object.assign({}, g, { skipFor: from });
+      }
+      const prog = PlotGcode.program(b.sheets, g, list);
       const out = outOfField(prog.lines);
       if (out && !confirm(`Печать выходит за рабочее поле плоттера (${cfg.bedW} × ${cfg.bedH} мм):\n${out}.\n\n` +
-        'Плоттер может упереться в край. Проверьте «X/Y угла» тетради и размер поля.\nВсё равно печатать?')) return;
-      live.active = true; live.page = which == null ? 0 : which; live.stroke = -1; live.pen = false; live.sel = null;
-      if (pageIdx !== live.page) { pageIdx = live.page; render(); }
+        'Плоттер может упереться в край. Проверьте положение тетради и размер поля.\nВсё равно печатать?')) return;
+      // показ хода печати на листе — только если лист на экране совпадает с печатаемым
+      const sameText = text === $('text').value;
+      live.active = !b.liveOff && sameText; live.page = list[0]; live.stroke = -1; live.pen = false; live.sel = b.liveSel;
+      if (live.active && pageIdx !== live.page) { pageIdx = live.page; render(); }
       $('printProg').value = 0;
+      job = { desc, text, cfg: c, list, pages: b.sheets.length, started: Date.now(), current: { page: list[0], stroke: from && from.page === list[0] ? from.n : 0 } };
+      saveJob(true);
+      $('resumeBar').hidden = true;
       sender.start(prog.lines, prog.meta);
       sender.setFeed(cfg.feedDraw);
+    }
+    // ход печати → в память
+    const onJobProgress = meta => {
+      if (!job || !meta || meta.page < 0 || meta.stroke < 0) return;
+      job.current = { page: meta.page, stroke: meta.stroke };
+      saveJob(false);
     };
+    window.__onJobProgress = onJobProgress;
+    const onJobState = name => {
+      if (!job) return;
+      if (name === 'waitPage') { const k = job.list.indexOf(job.current.page); job.current = { page: job.list[k + 1] ?? job.current.page, stroke: 0 }; saveJob(true); }
+      if (name === 'done') { if (sender.job && sender.job.early) saveJob(true); else forgetJob(); }
+      if (name === 'stopped') saveJob(true);
+    };
+    window.__onJobState = onJobState;
+    window.__getJob = () => job;
+
+    // полоса «печать не закончена» при запуске
+    function showResume() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem('plotterJob') || 'null'); } catch (e) { saved = null; }
+      if (!saved || !saved.text) { $('resumeBar').hidden = true; return; }
+      const k = saved.list.indexOf(saved.current.page);
+      const what = { all: 'все страницы', page: 'одна страница', selPlace: 'выделенное', selStart: 'выделенное' }[saved.desc.type] || '';
+      const when = new Date(saved.started).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      $('resumeText').textContent = `Печать не закончена (${when}, ${what}): «${saved.text.replace(/\s+/g, ' ').slice(0, 40)}…» — ` +
+        `остановилась на ${saved.cfg.spread ? 'развороте' : 'странице'} ${k + 1} из ${saved.list.length}, линия ${saved.current.stroke + 1}.`;
+      $('resumeBar').hidden = false;
+      $('resumeGo').onclick = () => {
+        if (!sender.connected) { alert('Сначала подключите плоттер (справа «🔌 Подключить»), затем нажмите «Продолжить» ещё раз.'); return; }
+        if (sender.job && !sender.job.finished) { alert('Сейчас идёт другая печать.'); return; }
+        if (!confirm('Плоттер после перезагрузки или переподключения обычно забывает, где стоит ручка.\n\n' +
+          'Если вы ещё не сделали этого: нажмите «Отмена», подведите ручку стрелками к верхнему левому углу тетради ' +
+          'и нажмите «📍 Ручка на углу тетради», потом снова «Продолжить».\n\nПродолжить печать сейчас?')) return;
+        startJob(saved.desc, saved);
+      };
+      $('resumeForget').onclick = () => { if (confirm('Забыть незаконченную печать?')) forgetJob(); };
+    }
+    setTimeout(showResume, 900);
+
+    const startPrint = which => startJob(which == null ? { type: 'all' } : { type: 'page', page: which });
     $('printSel').onclick = () => {
       const r = currentSelection() || selRange;
       if (!r) { alert('Сначала выделите мышью кусок текста в поле слева.'); return; }
-      if ($('selMode').value === 'start') {
-        // выделенное — как отдельный текст с начала листа
-        PlotFont.beginLayout(7);
-        const sub = buildSheets(PlotLayout.layoutDocument($('text').value.slice(r[0], r[1]), cfg).pages);
-        const prog = PlotGcode.program(sub, G(), null);
-        const out = outOfField(prog.lines);
-        if (out && !confirm(`Печать выходит за рабочее поле плоттера:\n${out}.\nВсё равно печатать?`)) return;
-        live.active = false;
-        logLine(`Печатаю выделенное с начала листа (${sub.length} стр.)`, 'info');
-        sender.start(prog.lines, prog.meta.map(m => Object.assign({}, m, { page: -1 })));
-        return;
-      }
-      // на своём месте: те же координаты, только линии выделенного
-      const ss = layoutSelection(r);
-      const only = ss.map(sh => Object.assign({}, sh, {
-        strokes: sh.strokes.filter((st, i) => !sh.hidden[i]),
-        lineOf: sh.lineOf.filter((v, i) => !sh.hidden[i]),
-      }));
-      const list = only.map((sh, i) => (sh.strokes.length ? i : -1)).filter(i => i >= 0);
-      if (!list.length) { alert('В выделенном нечего писать.'); return; }
-      const prog = PlotGcode.program(only, G(), list);
-      const out = outOfField(prog.lines);
-      if (out && !confirm(`Печать выходит за рабочее поле плоттера:\n${out}.\nВсё равно печатать?`)) return;
-      live.active = true; live.page = list[0]; live.stroke = -1; live.pen = false; live.sel = only;
-      if (pageIdx !== live.page) { pageIdx = live.page; render(); }
-      $('printProg').value = 0;
-      logLine(`Печатаю только выделенное, на своём месте (страниц: ${list.length})`, 'info');
-      sender.start(prog.lines, prog.meta);
+      const type = $('selMode').value === 'start' ? 'selStart' : 'selPlace';
+      logLine(type === 'selStart' ? 'Печатаю выделенное с начала листа' : 'Печатаю только выделенное, на своём месте', 'info');
+      startJob({ type, range: r });
     };
     $('printPage').onclick = () => startPrint(pageIdx);
     $('printAll').onclick = () => startPrint(null);
@@ -1276,7 +1352,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       $('flipBox').hidden = true;
       const home = cfg.penUp.split('\n').map(x => x.replace(/;.*/, '').trim()).filter(Boolean).concat(['G90', `G0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`]);
       sender.finishLines = home;
-      sender.endEarly();
+      sender.endEarly().then(() => forgetJob());
       logLine('Печать остальных страниц отменена.', 'info');
     };
     $('finishBtn').onclick = () => {

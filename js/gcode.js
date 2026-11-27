@@ -176,7 +176,10 @@
 
     // Поднимаем ручку в начале страницы
     push(...penUp);
+    // продолжение прерванной печати: первые n штрихов этой страницы уже написаны
+    const skip = cfg.skipFor && cfg.skipFor.page === pageNo - 1 ? Math.max(0, cfg.skipFor.n | 0) : 0;
     strokes.forEach((s, si) => {
+      if (si < skip) return;
       cur = si;
       const a = s[0];
       const gap = Math.hypot(a[0] - pos[0], a[1] - pos[1]);

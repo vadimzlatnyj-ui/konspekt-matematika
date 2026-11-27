@@ -87,7 +87,7 @@
             while ((k = this.rx.search(/\r?\n/)) >= 0) {
               const line = this.rx.slice(0, k).trim();
               this.rx = this.rx.slice(k + 1).replace(/^\n/, '');
-              if (line) this.handle(line);
+              if (line) { try { this.handle(line); } catch (e) { console.error(e); this.on.log('Ошибка программы при обработке ответа: ' + e.message, 'err'); } }
             }
           }
         } catch (e) {
@@ -293,6 +293,7 @@
       const j = this.job;
       if (!j) return;
       j.finished = true;
+      j.early = true;
       this.finishAfter = null; this.paused = false; this.restorePen = false;
       const t0 = Date.now();
       while (j.q.length && Date.now() - t0 < 8000) await new Promise(r => setTimeout(r, 30));
