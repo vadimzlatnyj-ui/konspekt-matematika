@@ -170,7 +170,7 @@
         const clean = l.replace(/\(.*?\)/g, '').replace(/;.*$/, '').trim();
         if (clean) send.push({ text: clean, src: i });
       });
-      this.job = { send, meta, idx: 0, acked: 0, total: send.length, inflight: null, finished: false };
+      this.job = { send, meta, idx: 0, acked: 0, total: send.length, q: [], qBytes: 0, finished: false };
       this.finishAfter = null;
       this.paused = false;
       this.manual = 0;
@@ -179,51 +179,65 @@
       this.pump();
     }
 
+    /**
+     * Отправка «с подсчётом символов»: в плату уходит столько строк, сколько помещается в её приёмный буфер
+     * (GRBL — 128 байт). Плата видит движения наперёд и едет плавно, без рывков на каждом коротком отрезке —
+     * иначе ручка подпрыгивает и пишет с пропусками.
+     */
     pump() {
       const j = this.job;
-      if (!j || this.paused || j.inflight || j.finished) return;
-      if (j.idx >= j.send.length) {
-        j.finished = true;
-        this.on.state('done');
-        this.on.log('Печать завершена', 'info');
-        return;
+      if (!j || this.paused || j.finished) return;
+      const limit = this.firmware === 'grbl' ? 120 : 60;
+      for (;;) {
+        if (j.idx >= j.send.length) {
+          if (!j.q.length) {
+            j.finished = true;
+            this.on.state('done');
+            this.on.log('Печать завершена', 'info');
+          }
+          return;
+        }
+        const item = j.send[j.idx];
+        // «Дописать строку и закончить»: дошли до следующей строки (или следующего штриха, если строк нет) — заканчиваем
+        if (this.finishAfter) {
+          const m = j.meta[item.src], fa = this.finishAfter;
+          const other = /^M0?[01]\b/i.test(item.text) || (m && m.stroke >= 0 && (
+            (fa.page >= 0 && m.page >= 0 && m.page !== fa.page) ||
+            (fa.line != null && m.line != null ? m.line !== fa.line : m.stroke !== fa.stroke)));
+          if (other || !m) { this.endEarly(); return; }
+        }
+        // пауза между страницами (M0/M1): ждём, пока плата всё дорисует, и спрашиваем пользователя
+        if (/^M0?[01]\b/i.test(item.text)) {
+          if (j.q.length) return;                       // сначала пусть подтвердит всё отправленное
+          const t = (this.firmware === 'grbl' ? 'G4 P0.01' : 'M400') + '\n';
+          j.q.push({ item, bytes: t.length, sync: true }); j.qBytes += t.length; j.idx++;
+          this.raw(t);
+          return;
+        }
+        let text = item.text;
+        // линия рисования: G1 с X/Y и без Z — ставим текущую скорость письма
+        if (this.drawFeed && /^G0?1(?!\d)/i.test(text) && /[XY]/i.test(text) && !/Z/i.test(text)) {
+          text = text.replace(/\s*F-?[\d.]+/i, '') + ' F' + this.drawFeed;
+        }
+        const line = text + '\n';
+        const bytes = this.enc.encode(line).length;
+        if (j.q.length && j.qBytes + bytes > limit) return;   // буфер платы полон — ждём «ok»
+        j.q.push({ item, bytes }); j.qBytes += bytes; j.idx++;
+        this.raw(line);
       }
-      const item = j.send[j.idx];
-      // «Дописать строку и закончить»: дошли до следующей строки (или следующего штриха, если строк нет) — заканчиваем
-      if (this.finishAfter) {
-        const m = j.meta[item.src], fa = this.finishAfter;
-        const other = /^M0?[01]\b/i.test(item.text) || (m && m.stroke >= 0 && (
-          (fa.page >= 0 && m.page >= 0 && m.page !== fa.page) ||
-          (fa.line != null && m.line != null ? m.line !== fa.line : m.stroke !== fa.stroke)));
-        if (other || !m) { this.endEarly(); return; }
-      }
-      // пауза между страницами (M0/M1): ждём окончания движений и спрашиваем пользователя
-      if (/^M0?[01]\b/i.test(item.text)) {
-        j.inflight = { item, sync: true };
-        this.raw((this.firmware === 'grbl' ? 'G4 P0.01' : 'M400') + '\n');
-        return;
-      }
-      j.inflight = { item };
-      let text = item.text;
-      // линия рисования: G1 с X/Y и без Z — ставим текущую скорость письма
-      if (this.drawFeed && /^G0?1(?!\d)/i.test(text) && /[XY]/i.test(text) && !/Z/i.test(text)) {
-        text = text.replace(/\s*F-?[\d.]+/i, '') + ' F' + this.drawFeed;
-      }
-      this.raw(text + '\n');
     }
 
     ack(isError) {
       if (this.manual > 0) { this.manual--; return; }
       const j = this.job;
-      if (!j || !j.inflight) return;
-      const { item, sync } = j.inflight;
-      j.inflight = null;
-      j.idx++;
-      j.acked = j.idx;
+      if (!j || !j.q || !j.q.length) return;
+      const { item, bytes, sync } = j.q.shift();
+      j.qBytes -= bytes;
+      j.acked++;
       const mt = j.meta[item.src];
       if (mt) j.lastPen = !!mt.pen;          // опущена ли ручка после этой строки программы
       if (mt && mt.stroke >= 0) j.lastMeta = mt;
-      this.on.progress({ acked: j.idx, total: j.total, src: item.src, meta: mt });
+      this.on.progress({ acked: j.acked, total: j.total, src: item.src, meta: mt });
       if (sync) {
         this.paused = true;
         this.on.state('waitPage', item.text);
@@ -250,7 +264,7 @@
       this.paused = true;
       this.on.state('pausing');
       const t0 = Date.now();
-      while (j.inflight && Date.now() - t0 < 5000) await new Promise(r => setTimeout(r, 30));
+      while (j.q.length && Date.now() - t0 < 8000) await new Promise(r => setTimeout(r, 30));
       if (this.job !== j) return; // за это время нажали «Стоп»
       penIsDown = !!j.lastPen;    // положение ручки там, где реально остановилась программа
       await this.sendManual([this.firmware === 'grbl' ? 'G4 P0.01' : 'M400'].concat(penIsDown ? penUpLines || [] : []));
@@ -281,8 +295,8 @@
       j.finished = true;
       this.finishAfter = null; this.paused = false; this.restorePen = false;
       const t0 = Date.now();
-      while (j.inflight && Date.now() - t0 < 5000) await new Promise(r => setTimeout(r, 30));
-      j.inflight = null;
+      while (j.q.length && Date.now() - t0 < 8000) await new Promise(r => setTimeout(r, 30));
+      j.q = []; j.qBytes = 0;
       await this.sendManual(this.finishLines || []);
       this.on.state('done');
       this.on.log('Печать закончена: ручка поднята и вернулась домой.', 'info');

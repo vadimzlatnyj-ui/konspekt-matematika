@@ -5,8 +5,28 @@
   'use strict';
 
   /** Удаляет почти совпадающие соседние точки */
+  /** Убирает точки, лежащие почти на прямой (отклонение < eps мм) — меньше коротких отрезков, плавнее ход */
+  function rdp(pts, eps) {
+    if (pts.length < 3) return pts;
+    const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+    const st = [[0, pts.length - 1]];
+    while (st.length) {
+      const [a, b] = st.pop();
+      const [ax, ay] = pts[a], [bx, by] = pts[b];
+      const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+      let md = 0, mi = -1;
+      for (let i = a + 1; i < b; i++) {
+        const d = L ? Math.abs(dy * (pts[i][0] - ax) - dx * (pts[i][1] - ay)) / L : Math.hypot(pts[i][0] - ax, pts[i][1] - ay);
+        if (d > md) { md = d; mi = i; }
+      }
+      if (md > eps && mi > 0) { keep[mi] = 1; st.push([a, mi], [mi, b]); }
+    }
+    return pts.filter((p, i) => keep[i]);
+  }
+
   function simplify(stroke, minSeg) {
     if (stroke.length < 2) return stroke.slice();
+    stroke = rdp(stroke, 0.02);
     const out = [stroke[0]];
     for (let i = 1; i < stroke.length; i++) {
       const p = stroke[i], q = out[out.length - 1];

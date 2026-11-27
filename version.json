@@ -1,8 +1,8 @@
 {
-  "version": "84fe1cb08074",
-  "built": 1795806186502,
-  "date": "2026-11-27T19:03:06.502Z",
-  "notes": "Небрежность стала заметной: размер, наклон, высота и дрожание линий",
+  "version": "3cc60d17e68c",
+  "built": 1795806452881,
+  "date": "2026-11-27T19:07:32.881Z",
+  "notes": "Плавная печать: отправка пачками в буфер платы, меньше мелких отрезков",
   "files": [
     {
       "path": "index.html",
@@ -31,8 +31,8 @@
     },
     {
       "path": "js/gcode.js",
-      "size": 10645,
-      "sha256": "6522b73c892b4c78104adc969c3ca866d1fbb633e2446f6ba5dba3fd002dfbc6"
+      "size": 11587,
+      "sha256": "a2ef411412be99fd6c8a95845ec9c95f1a43981bca9e248afcad2da182878a06"
     },
     {
       "path": "js/graph.js",
@@ -61,8 +61,8 @@
     },
     {
       "path": "js/serial.js",
-      "size": 17438,
-      "sha256": "10fc756dacdb830916b3f97a86a9e1075a928f95e68a9fb135814fab168039c6"
+      "size": 18547,
+      "sha256": "bd00ad242247a5f17e6ead4ee6fada97fc5133f4860a7e95ecc4fdd068a77ac0"
     },
     {
       "path": "js/vendor/opentype.LICENSE",
