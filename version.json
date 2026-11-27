@@ -1,23 +1,23 @@
 {
-  "version": "2a902d1220fc",
-  "built": 1795803020115,
-  "date": "2026-11-27T18:10:20.115Z",
-  "notes": "Импорт конспектов из Word (с формулами) и PDF",
+  "version": "2f1127489c2c",
+  "built": 1795803302926,
+  "date": "2026-11-27T18:15:02.926Z",
+  "notes": "Отмена Ctrl+Z / возврат Ctrl+Y и приближение листа",
   "files": [
     {
       "path": "index.html",
-      "size": 26091,
-      "sha256": "7d01a1af56c48ddc6980bb7f1e1b922208a229b53ade7f5a75f844ab8519fbaf"
+      "size": 26705,
+      "sha256": "36ee7e16459df0df0553ba165ad8b8399e9ad857bb98a690c233987fe182e889"
     },
     {
       "path": "css/style.css",
-      "size": 6157,
-      "sha256": "1e1a0cdf0155cc5f64aece58b1559bfce58c6037252e64807e1be2af8db213da"
+      "size": 6646,
+      "sha256": "615e6088ee97b12345587ff47ec4b3bfaef2b19a9141d612c92f61ed52059257"
     },
     {
       "path": "js/app.js",
-      "size": 67881,
-      "sha256": "08c9d001cc4ddc19e5afead69d4b4bc09b1bc8bf45e15b3eb74cab6c762dbd35"
+      "size": 74684,
+      "sha256": "7305af8e4a3f07da139e2cfde6b8ced6c062b6130fa05c4352376955ea8581e6"
     },
     {
       "path": "js/customfont.js",

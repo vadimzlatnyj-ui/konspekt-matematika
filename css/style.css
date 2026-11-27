@@ -97,3 +97,9 @@ details.sub summary { font-weight: 500; font-size: 12px; color: #4b5563; }
 
 .nbSave { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
 .nbSave input { flex: 1; min-width: 120px; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 5px; }
+
+.zoomBar { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; align-items: center; background: rgba(255,255,255,.9); border-radius: 6px; padding: 3px 5px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.zoomBar button { width: 28px; height: 26px; padding: 0; font-size: 15px; }
+#zoomVal { font-size: 12px; min-width: 42px; text-align: center; color: #374151; }
+#canvas { max-width: none; max-height: none; }
+#undoBtn, #redoBtn { width: 32px; padding: 4px; font-size: 15px; }

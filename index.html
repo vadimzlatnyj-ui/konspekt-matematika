@@ -236,6 +236,8 @@
   <section id="editor">
     <div class="bar">
       <b>Текст ответа</b>
+      <button id="undoBtn" type="button" title="Отменить (Ctrl+Z)" disabled>↶</button>
+      <button id="redoBtn" type="button" title="Вернуть (Ctrl+Y)" disabled>↷</button>
       <button id="demoBtn" type="button" title="Вставить пример с формулами и графиками">📄 Пример</button>
       <label class="filebtn" title="Перенести конспект из файла Word (.docx), PDF или текстового файла">📥 Открыть Word / PDF<input type="file" id="docFile" accept=".docx,.pdf,.txt,.md,.tex,.doc"></label>
       <span id="docInfo" class="hint"></span>
@@ -328,7 +330,14 @@
       <progress id="printProg" max="1000" value="0"></progress>
       <pre id="serialLog"></pre>
     </details>
-    <div id="canvasWrap"><canvas id="canvas"></canvas></div>
+    <div id="canvasWrap"><canvas id="canvas"></canvas>
+      <div class="zoomBar">
+        <button id="zoomOut" type="button" title="Отдалить">−</button>
+        <span id="zoomVal">100%</span>
+        <button id="zoomIn" type="button" title="Приблизить (или колёсико мыши над листом)">+</button>
+        <button id="zoomFit" type="button" title="Весь лист (или двойной щелчок)">⤢</button>
+      </div>
+    </div>
     <div class="bar sim">
       <button id="simPlay" type="button" title="Показать, как будет двигаться ручка">▶ Симуляция</button>
       <input type="range" id="simPos" min="0" max="1000" value="1000">

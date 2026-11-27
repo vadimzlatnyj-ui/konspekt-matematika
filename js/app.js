@@ -193,6 +193,45 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     return `Разворот ${i + 1} из ${sheets.length}: стр. ${nums.join('–')}`;
   }
 
+  // ---------- отмена / возврат (Ctrl+Z / Ctrl+Y): текст и настройки ----------
+  const hist = { stack: [], pos: -1, restoring: false, timer: null };
+  const snapshot = () => JSON.stringify({ text: $('text').value, cfg });
+  function pushHistory() {
+    if (hist.restoring) return;
+    const s = snapshot();
+    if (hist.stack[hist.pos] === s) return;
+    hist.stack = hist.stack.slice(0, hist.pos + 1);
+    hist.stack.push(s);
+    if (hist.stack.length > 200) hist.stack.shift();
+    hist.pos = hist.stack.length - 1;
+    updateUndoButtons();
+  }
+  function updateUndoButtons() {
+    if (!$('undoBtn')) return;
+    $('undoBtn').disabled = hist.pos <= 0;
+    $('redoBtn').disabled = hist.pos >= hist.stack.length - 1;
+  }
+  function restoreHistory(step) {
+    if (typeof sender !== 'undefined' && sender && sender.job && !sender.job.finished) return; // во время печати — нельзя
+    clearTimeout(hist.timer);
+    pushHistory(); // зафиксировать несохранённые изменения
+    const to = hist.pos + step;
+    if (to < 0 || to >= hist.stack.length) return;
+    hist.pos = to;
+    const st = JSON.parse(hist.stack[to]);
+    hist.restoring = true;
+    const sel = $('text').selectionStart;
+    $('text').value = st.text;
+    cfg = Object.assign({}, DEFAULTS, st.cfg);
+    if (typeof fillNotebookOptions === 'function') fillNotebookOptions(cfg.preset);
+    fillForm();
+    if (typeof fontOptions === 'function') fontOptions();
+    recompute();
+    try { $('text').selectionStart = $('text').selectionEnd = Math.min(sel, st.text.length); } catch (e) { /* */ }
+    hist.restoring = false;
+    updateUndoButtons();
+  }
+
   function recompute() {
     readForm(); save();
     localStorage.setItem('plotterText', $('text').value);
@@ -216,6 +255,8 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       warns.push(`Точка дома (${cfg.startX}; ${cfg.startY}) вне рабочего поля.`);
     $('warnings').innerHTML = warns.map(w => `<div>${escapeHtml(w)}</div>`).join('');
     render();
+    // в историю — после паузы в наборе (так слово, а не каждая буква, отменяется за раз)
+    if (!hist.restoring) { clearTimeout(hist.timer); hist.timer = setTimeout(pushHistory, hist.stack.length ? 700 : 0); }
   }
 
   function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
@@ -404,19 +445,83 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   }
 
   // ---------- холст ----------
+  // ---------- масштаб предпросмотра: колёсико — приблизить к курсору, мышью — двигать ----------
+  const zoom = { z: 1, px: 0, py: 0, base: null };   // px/py — сдвиг в экранных пикселях
   function setupCanvas(wmm, hmm) {
     const wrap = $('canvasWrap');
-    const cw = wrap.clientWidth - 16, ch = wrap.clientHeight - 16;
-    const k = Math.max(0.5, Math.min(cw / wmm, ch / hmm));
+    const cw = Math.max(50, wrap.clientWidth - 16), ch = Math.max(50, wrap.clientHeight - 16);
+    const fit = Math.max(0.5, Math.min(cw / wmm, ch / hmm));
     const c = $('canvas');
     const dpr = window.devicePixelRatio || 1;
-    c.style.width = (wmm * k) + 'px';
-    c.style.height = (hmm * k) + 'px';
-    c.width = Math.round(wmm * k * dpr);
-    c.height = Math.round(hmm * k * dpr);
+    let W, H;
+    if (zoom.z <= 1.0001) { W = wmm * fit; H = hmm * fit; zoom.px = zoom.py = 0; }   // обычный вид — лист целиком
+    else { W = cw; H = ch; }                                                          // приближение — во всё окно
+    c.style.width = W + 'px'; c.style.height = H + 'px';
+    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+    const k = fit * zoom.z;
+    // по центру + сдвиг
+    const ox = (W - wmm * k) / 2 + zoom.px, oy = (H - hmm * k) / 2 + zoom.py;
+    zoom.base = { fit, wmm, hmm, W, H };
     const ctx = c.getContext('2d');
-    ctx.setTransform(k * dpr, 0, 0, k * dpr, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (zoom.z > 1.0001) { ctx.fillStyle = '#e5e7eb'; ctx.fillRect(0, 0, c.width, c.height); }
+    ctx.setTransform(k * dpr, 0, 0, k * dpr, ox * dpr, oy * dpr);
+    $('zoomVal').textContent = Math.round(zoom.z * 100) + '%';
     return { ctx, k };
+  }
+  function setZoom(z, cx, cy) {
+    // cx, cy — точка на холсте (экранные пиксели), которая должна остаться на месте
+    const b = zoom.base; if (!b) return;
+    z = Math.max(1, Math.min(12, z));
+    const W = z > 1.0001 ? Math.max(50, $('canvasWrap').clientWidth - 16) : b.wmm * b.fit;
+    const H = z > 1.0001 ? Math.max(50, $('canvasWrap').clientHeight - 16) : b.hmm * b.fit;
+    if (cx === undefined) { cx = W / 2; cy = H / 2; }
+    const kOld = b.fit * zoom.z, kNew = b.fit * z;
+    const oxOld = (b.W - b.wmm * kOld) / 2 + zoom.px, oyOld = (b.H - b.hmm * kOld) / 2 + zoom.py;
+    // точка листа под курсором
+    const mx = (cx - oxOld) / kOld, my = (cy - oyOld) / kOld;
+    zoom.z = z;
+    zoom.px = cx - mx * kNew - (W - b.wmm * kNew) / 2;
+    zoom.py = cy - my * kNew - (H - b.hmm * kNew) / 2;
+    if (z <= 1.0001) zoom.px = zoom.py = 0;
+    draw();
+  }
+  function initZoom() {
+    const c = $('canvas');
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      const r = c.getBoundingClientRect();
+      // если холст ещё не во всё окно — пересчитаем точку в координатах будущего холста
+      const wrapR = $('canvasWrap').getBoundingClientRect();
+      const big = zoom.z > 1.0001;
+      const cx = e.clientX - (big ? r.left : r.left), cy = e.clientY - (big ? r.top : r.top);
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      if (!big) {
+        // переход из «листа целиком» во «всё окно»: сначала разворачиваем холст, сохраняя точку
+        const b = zoom.base; if (!b) return;
+        const W = Math.max(50, wrapR.width - 16), H = Math.max(50, wrapR.height - 16);
+        const offX = (W - b.W) / 2, offY = (H - b.H) / 2;
+        zoom.base = Object.assign({}, b, { W, H });
+        zoom.px = 0; zoom.py = 0;
+        setZoom(zoom.z * factor, cx + offX, cy + offY);
+      } else setZoom(zoom.z * factor, cx, cy);
+    }, { passive: false });
+    let drag = null;
+    c.addEventListener('mousedown', e => {
+      if (zoom.z <= 1.0001) return;
+      drag = { x: e.clientX, y: e.clientY, px: zoom.px, py: zoom.py };
+      c.style.cursor = 'grabbing'; e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!drag) return;
+      zoom.px = drag.px + (e.clientX - drag.x); zoom.py = drag.py + (e.clientY - drag.y);
+      draw();
+    });
+    window.addEventListener('mouseup', () => { if (drag) { drag = null; c.style.cursor = zoom.z > 1.0001 ? 'grab' : ''; } });
+    c.addEventListener('dblclick', () => { zoom.z = 1; zoom.px = zoom.py = 0; draw(); c.style.cursor = ''; });
+    $('zoomIn').onclick = () => { if (zoom.z <= 1.0001) { const b = zoom.base; if (b) zoom.base = Object.assign({}, b, { W: Math.max(50, $('canvasWrap').clientWidth - 16), H: Math.max(50, $('canvasWrap').clientHeight - 16) }); } setZoom(zoom.z * 1.5); c.style.cursor = 'grab'; };
+    $('zoomOut').onclick = () => { setZoom(zoom.z / 1.5); c.style.cursor = zoom.z > 1.0001 ? 'grab' : ''; };
+    $('zoomFit').onclick = () => { zoom.z = 1; zoom.px = zoom.py = 0; draw(); c.style.cursor = ''; };
   }
 
   function drawPage(sheet) {
@@ -665,7 +770,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('showLines').onchange = () => draw();
     $('simPlay').onclick = toggleSim;
     $('simPos').oninput = () => { stopSim(); sim.t = $('simPos').value >= 1000 ? Infinity : $('simPos').value / 1000 * path.total; draw(); };
-    $('view').onchange = render;
+    $('view').onchange = () => { zoom.z = 1; zoom.px = zoom.py = 0; render(); };
     window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(draw, 150); });
 
     $('dlPage').onclick = () => download(pageName(pageIdx), currentGcode().text);
@@ -689,6 +794,13 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       cfg = Object.assign({}, DEFAULTS); fillForm(); recompute();
     };
     document.addEventListener('keydown', e => {
+      // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z — по физической клавише, чтобы работало и в русской раскладке
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.code === 'KeyZ' || e.code === 'KeyY')) {
+        if (e.target.tagName === 'INPUT' && e.target.type === 'text' && e.target.id === 'nbName') return;
+        e.preventDefault();
+        restoreHistory(e.code === 'KeyY' || e.shiftKey ? 1 : -1);
+        return;
+      }
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
       if (e.key === 'ArrowLeft') $('prev').click();
       if (e.key === 'ArrowRight') $('next').click();
@@ -1153,6 +1265,9 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   const savedText = localStorage.getItem('plotterText');
   $('text').value = savedText && savedText.trim() ? savedText : SAMPLE;
   bind();
+  $('undoBtn').onclick = () => restoreHistory(-1);
+  $('redoBtn').onclick = () => restoreHistory(1);
+  initZoom();
   initSerial();
   initUpdates();
   fontOptions();
