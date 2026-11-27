@@ -295,6 +295,94 @@
     return out;
   }
 
+  // ---------- zip-архив (в том числе с данными перед ним, как в .gfont) ----------
+  function zipEntries(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    let eocd = -1;
+    for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) return null;
+    const n = dv.getUint16(eocd + 10, true);
+    const cdSize = dv.getUint32(eocd + 12, true), cdOff = dv.getUint32(eocd + 16, true);
+    const shift = eocd - cdSize - cdOff;          // сколько байт стоит перед архивом
+    if (shift < 0) return null;
+    let p = cdOff + shift;
+    const dec = new TextDecoder();
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) return null;
+      const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+      const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+      const lho = dv.getUint32(p + 42, true) + shift;
+      const name = dec.decode(u8.subarray(p + 46, p + 46 + nlen));
+      out.push({
+        name,
+        async data() {
+          const ln = dv.getUint16(lho + 26, true), lx = dv.getUint16(lho + 28, true);
+          const raw = u8.subarray(lho + 30 + ln + lx, lho + 30 + ln + lx + csize);
+          if (method === 0) return raw.slice();
+          return new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+        },
+      });
+      p += 46 + nlen + xlen + clen;
+    }
+    return out;
+  }
+
+  // ---------- .gfont: zip, в нём по файлу на букву (имя — код символа) ----------
+  // Буква: u16 длина + символ (UTF-8), f32, u32 N, N чисел f32 (x,y,x,y…), u32 M, M команд (0 — новая линия, 1 — продолжить).
+  // Все числа — big-endian, ось Y вниз, базовая линия — 0.
+  async function parseGFont(entries) {
+    const raw = new Map();
+    for (const e of entries) {
+      if (!/^\d+$/.test(e.name)) continue;
+      const b = await e.data();
+      const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+      let o = 0;
+      const L = dv.getUint16(o); o += 2;
+      const ch = new TextDecoder().decode(b.subarray(o, o + L)); o += L;
+      o += 4;                                     // число (обычно −1) — не используется
+      const nf = dv.getUint32(o); o += 4;
+      const pts = [];
+      for (let i = 0; i + 1 < nf; i += 2) pts.push([dv.getFloat32(o + i * 4), dv.getFloat32(o + i * 4 + 4)]);
+      o += nf * 4;
+      const nc = dv.getUint32(o); o += 4;
+      const polys = []; let cur = null;
+      for (let i = 0; i < pts.length; i++) {
+        const c = i < nc ? b[o + i] : 1;
+        if (c === 0 || !cur) { cur = []; polys.push(cur); }
+        cur.push(pts[i]);
+      }
+      const key = Array.from(ch).length === 1 ? ch : String.fromCodePoint(+e.name);
+      raw.set(key, polys.filter(q => q.length > 1).length ? polys.filter(q => q.length > 1) : polys.map(q => [q[0], [q[0][0] + 0.5, q[0][1]]]));
+    }
+    if (!raw.size) throw new Error('в файле .gfont не нашлось букв');
+    // высота заглавных — по А / Н / Е / Т (ось Y вниз, базовая линия 0)
+    let cap = 0;
+    for (const c of ['А', 'Н', 'Е', 'Т', 'H', 'A', 'E']) {
+      const g = raw.get(c); if (!g) continue;
+      const ys = g.flat().map(q => q[1]);
+      cap = -Math.min(...ys); if (cap > 0) break;
+    }
+    if (!(cap > 0)) { const ys = [...raw.values()].flat(2).filter((v, i) => i % 2 === 1); cap = -Math.min(...ys) || 100; }
+    const scale = CAP / cap;
+    const cache = new Map();
+    return {
+      kind: 'single', count: raw.size,
+      get(ch) {
+        if (cache.has(ch)) return cache.get(ch);
+        const polys = raw.get(ch);
+        let g = null;
+        if (polys) {
+          const xs = polys.flat().map(q => q[0]);
+          const x0 = Math.min(...xs), x1 = Math.max(...xs);
+          g = makeGlyph(polys, x1 - x0 + cap * 0.22, scale, true, 0, x0);
+        }
+        cache.set(ch, g);
+        return g;
+      },
+    };
+  }
+
   /** Загружает шрифт из содержимого файла (ArrayBuffer). Формат — по содержимому, расширение не важно. */
   async function load(name, buf, depth = 0) {
     const b = new Uint8Array(buf.slice(0, 8));
@@ -304,7 +392,14 @@
     else if (tag === 'wOF2') throw new Error('WOFF2 не поддерживается — сохраните шрифт как TTF или OTF');
     else if (tag === 'ttcf') throw new Error('это коллекция шрифтов (TTC) — извлеките из неё один TTF');
     else if (b[0] === 0x1f && b[1] === 0x8b && depth < 2) return load(name, await gunzip(new Uint8Array(buf)), depth + 1);
-    else if (tag.startsWith('PK') && depth < 2) return load(name, await fromZip(buf), depth + 1);
+    else if (tag.startsWith('PK') && depth < 2) {
+      const ents = zipEntries(buf);
+      if (ents && ents.length && ents.filter(e => /^\d+$/.test(e.name)).length >= ents.length * 0.8) font = await parseGFont(ents);
+      else return load(name, await fromZip(buf), depth + 1);
+    }
+    else if ((() => { const e = zipEntries(buf); return e && e.length && e.filter(x => /^\d+$/.test(x.name)).length >= e.length * 0.8; })()) {
+      font = await parseGFont(zipEntries(buf));
+    }
     else {
       let text = new TextDecoder().decode(buf);
       if (text.includes('�') && !/^[\s{<\d]/.test(text.replace(/^﻿/, ''))) {

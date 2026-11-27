@@ -1,13 +1,13 @@
 {
-  "version": "20b5b25b6138",
-  "built": 1795804187603,
-  "date": "2026-11-27T18:29:47.603Z",
-  "notes": "Шрифты .font: zip/gzip, JSON других программ; в формулах цифры из шрифта",
+  "version": "6740e741e7de",
+  "built": 1795804317923,
+  "date": "2026-11-27T18:31:57.923Z",
+  "notes": "Поддержка рукописных шрифтов .gfont",
   "files": [
     {
       "path": "index.html",
-      "size": 27365,
-      "sha256": "d48913bc43eb6a5a96949f95a0c7d6b8e2448997fa9d602fec23387e8004e5a6"
+      "size": 27372,
+      "sha256": "b9e69739ff97b522f20072fe48fcd8e30c9ac9a87702a2bbc8bac7e716375250"
     },
     {
       "path": "css/style.css",
@@ -21,8 +21,8 @@
     },
     {
       "path": "js/customfont.js",
-      "size": 17912,
-      "sha256": "472aea5614bfce7caf8eb46672af58b3f9e7d6c189640b64484cbc697d579373"
+      "size": 22603,
+      "sha256": "8709706b4a8dd6c53fe67b9f05f4961237f7db5cc3cd168158c636112f9334d7"
     },
     {
       "path": "js/font.js",
