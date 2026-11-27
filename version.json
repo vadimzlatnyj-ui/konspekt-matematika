@@ -1,13 +1,13 @@
 {
-  "version": "876e81ddba2a",
-  "built": 1795802757089,
-  "date": "2026-11-27T18:05:57.089Z",
-  "notes": "Свои тетради с названиями; исправление направлений стрелок",
+  "version": "2a902d1220fc",
+  "built": 1795803020115,
+  "date": "2026-11-27T18:10:20.115Z",
+  "notes": "Импорт конспектов из Word (с формулами) и PDF",
   "files": [
     {
       "path": "index.html",
-      "size": 25749,
-      "sha256": "3d46f4a9a8a6977a05dacb92e59759561a7115da9168dbf8a6b14e50abf2d010"
+      "size": 26091,
+      "sha256": "7d01a1af56c48ddc6980bb7f1e1b922208a229b53ade7f5a75f844ab8519fbaf"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 66432,
-      "sha256": "ce10f3336d75886a2ee71b1abb3804ad3b3d97f552a332847fbec384879f3af9"
+      "size": 67881,
+      "sha256": "08c9d001cc4ddc19e5afead69d4b4bc09b1bc8bf45e15b3eb74cab6c762dbd35"
     },
     {
       "path": "js/customfont.js",
@@ -38,6 +38,11 @@
       "path": "js/graph.js",
       "size": 25409,
       "sha256": "e1c4012baa60ecac994e8d7592a411514824d4b705f244b22ef4727aa8c60bc6"
+    },
+    {
+      "path": "js/importdoc.js",
+      "size": 15369,
+      "sha256": "a3185cb3469e0bfd686cf5eb12058548331743815419b02616612e6932874a54"
     },
     {
       "path": "js/layout.js",
@@ -63,6 +68,21 @@
       "path": "js/vendor/opentype.min.js",
       "size": 170961,
       "sha256": "e8abbd5ec06f23e8ce94a6b0caa82f51d12217da6d1d73301cf1e1391ec383df"
+    },
+    {
+      "path": "js/vendor/pdf.min.js",
+      "size": 320004,
+      "sha256": "5b5799e6f8c680663207ac5b42ee14eed2a406fa7af48f50c154f0c0b1566946"
+    },
+    {
+      "path": "js/vendor/pdf.worker.min.js",
+      "size": 1087212,
+      "sha256": "feabdf309770ed24bba31a5467836cdc8cf639c705af27d52b585b041bb8527b"
+    },
+    {
+      "path": "js/vendor/pdfjs.LICENSE",
+      "size": 10174,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
     }
   ]
 }

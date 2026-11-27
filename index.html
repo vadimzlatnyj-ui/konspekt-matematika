@@ -237,6 +237,8 @@
     <div class="bar">
       <b>Текст ответа</b>
       <button id="demoBtn" type="button" title="Вставить пример с формулами и графиками">📄 Пример</button>
+      <label class="filebtn" title="Перенести конспект из файла Word (.docx), PDF или текстового файла">📥 Открыть Word / PDF<input type="file" id="docFile" accept=".docx,.pdf,.txt,.md,.tex,.doc"></label>
+      <span id="docInfo" class="hint"></span>
       <span class="hint">Формулы в <code>$…$</code>, <code>$$…$$</code>, <code>\(…\)</code>, <code>\[…\]</code>. Новая страница — строка <code>\newpage</code>.</span>
     </div>
     <textarea id="text" spellcheck="false"></textarea>
@@ -364,6 +366,7 @@
 <script src="js/layout.js"></script>
 <script src="js/gcode.js"></script>
 <script src="js/serial.js"></script>
+<script src="js/importdoc.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

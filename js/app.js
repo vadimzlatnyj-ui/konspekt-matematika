@@ -587,6 +587,26 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       el.addEventListener('change', schedule);
     });
     $('text').addEventListener('input', schedule);
+    $('docFile').onchange = async e => {
+      const file = e.target.files[0]; e.target.value = '';
+      if (!file) return;
+      const info = $('docInfo');
+      info.textContent = 'Читаю «' + file.name + '»…';
+      try {
+        const r = await PlotImport.readFile(file, (n, total) => { info.textContent = `Читаю PDF: страница ${n} из ${total}…`; });
+        if (!r.text.trim()) throw new Error('в файле не нашлось текста (возможно, это скан — картинки, а не текст)');
+        const cur = $('text').value.trim();
+        if (!cur || cur === SAMPLE.trim() || confirm('Заменить текущий текст содержимым файла?\n\nОК — заменить,  Отмена — добавить в конец.')) $('text').value = r.text;
+        else $('text').value = $('text').value.replace(/\s+$/, '') + '\n\n' + r.text;
+        const nf = (r.text.match(/\$/g) || []).length;
+        info.textContent = `Загружено из ${r.kind}: «${file.name}»` + (r.kind === 'Word' && nf ? ', формулы перенесены' : '') +
+          (r.kind === 'PDF' ? ' — проверьте формулы: из PDF они переносятся только частично' : '');
+        schedule();
+      } catch (err) {
+        info.textContent = '';
+        alert('Не удалось открыть файл: ' + err.message);
+      }
+    };
     $('demoBtn').onclick = () => {
       const cur = $('text').value.trim();
       if (cur && cur !== SAMPLE.trim() && !confirm('Заменить текущий текст демонстрационным примером?')) return;
