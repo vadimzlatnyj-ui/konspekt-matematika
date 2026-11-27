@@ -328,10 +328,53 @@
   let mathMode = 'digits';
   function setCustom(font, mode) { custom = font || null; mathMode = mode === true ? 'all' : mode === false ? 'none' : (mode || 'digits'); customMath = mathMode === 'all'; }
 
+  // Второй шрифт вперемешку и «небрежность»: буквы не выходят одинаковыми копиями.
+  // Случайность детерминированная: номер буквы в вёрстке + зерно → один и тот же текст выглядит одинаково.
+  let mixFont = null, mixRatio = 0, jitter = 0, seed = 1, counter = 0;
+  function setMix(font, ratio, jit) { mixFont = font || null; mixRatio = Math.max(0, Math.min(1, +ratio || 0)); jitter = Math.max(0, Math.min(1, +jit || 0)); }
+  function beginLayout(sd) { seed = (sd >>> 0) || 1; counter = 0; }
+  function rnd(n, k) { // псевдослучайное 0..1 по номеру буквы
+    let t = (seed ^ Math.imul(n + 1, 0x9E3779B1) ^ Math.imul(k + 7, 0x85EBCA77)) >>> 0;
+    t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  /** Небольшая неровность буквы: размер, наклон, поворот, сдвиг по высоте */
+  function wobble(g, n) {
+    if (!jitter || !g || !g.strokes.length) return g;
+    const sc = 1 + (rnd(n, 1) - 0.5) * 0.12 * jitter;
+    const rot = (rnd(n, 2) - 0.5) * 7 * jitter * Math.PI / 180;
+    const sh = (rnd(n, 3) - 0.5) * 0.16 * jitter;
+    const dy = (rnd(n, 4) - 0.5) * 0.9 * jitter;
+    const cx = g.w / 2, c = Math.cos(rot), si = Math.sin(rot);
+    let asc = 0, desc = 0;
+    const strokes = g.strokes.map(st => st.map(([x, y]) => {
+      let X = (x - cx) * sc, Y = y * sc;
+      X += Y * sh;
+      const xr = X * c - Y * si + cx, yr = X * si + Y * c + dy;
+      if (yr > asc) asc = yr; if (-yr > desc) desc = -yr;
+      return [xr, yr];
+    }));
+    return { w: g.w * sc, strokes, asc, desc };
+  }
+
   function getGlyph(ch, isText) {
-    if (custom && ch !== ' ' && (isText || customMath || (mathMode === 'digits' && ch >= '0' && ch <= '9'))) {
-      try { const g = custom.get(ch); if (g) return g; } catch (e) { /* нет буквы — берём встроенную */ }
+    const hand = ch !== ' ' && (isText || customMath || (mathMode === 'digits' && ch >= '0' && ch <= '9'));
+    if (hand && (custom || mixFont || jitter)) {
+      const n = counter++;
+      const primary = custom || 'builtin';
+      const order = mixFont && rnd(n, 0) < mixRatio ? [mixFont, primary] : [primary, mixFont];
+      for (const f of order) {
+        if (!f) continue;
+        let g = null;
+        try { g = f === 'builtin' ? builtinGlyph(ch) : f.get(ch); } catch (e) { g = null; }
+        if (g) return wobble(g, n);
+      }
+      return wobble(builtinGlyph(ch), n);
     }
+    return builtinGlyph(ch);
+  }
+
+  function builtinGlyph(ch) {
     if (cache.has(ch)) return cache.get(ch);
     const raw = resolve(ch);
     if (!raw) { cache.set(ch, null); return null; }
@@ -348,5 +391,5 @@
     return { w: 4, strokes: [[[0, 0], [4, 0], [4, 6], [0, 6], [0, 0]]], asc: 6, desc: 0 };
   }
 
-  root.PlotFont = { getGlyph, setCustom, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
+  root.PlotFont = { getGlyph, setCustom, setMix, beginLayout, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
 })(typeof window !== 'undefined' ? window : globalThis);

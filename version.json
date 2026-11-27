@@ -1,13 +1,13 @@
 {
-  "version": "6740e741e7de",
-  "built": 1795804317923,
-  "date": "2026-11-27T18:31:57.923Z",
-  "notes": "Поддержка рукописных шрифтов .gfont",
+  "version": "e0453ce25786",
+  "built": 1795805039006,
+  "date": "2026-11-27T18:43:59.006Z",
+  "notes": "Два шрифта вперемешку и «небрежность» почерка",
   "files": [
     {
       "path": "index.html",
-      "size": 27372,
-      "sha256": "b9e69739ff97b522f20072fe48fcd8e30c9ac9a87702a2bbc8bac7e716375250"
+      "size": 27843,
+      "sha256": "0d3050e3ca93b03e07757a908355a523e1aacd638d41b6f69570b61182027d28"
     },
     {
       "path": "css/style.css",
@@ -16,8 +16,8 @@
     },
     {
       "path": "js/app.js",
-      "size": 76810,
-      "sha256": "00c5225fed11573d1580b56c62e8692745996149a872c5a2112472565efb434a"
+      "size": 77934,
+      "sha256": "7435e49937a6230fcec1620669ef706eacfee7e6d5516f639345a3fd04bb750b"
     },
     {
       "path": "js/customfont.js",
@@ -26,8 +26,8 @@
     },
     {
       "path": "js/font.js",
-      "size": 16759,
-      "sha256": "422e3f289e6f29286f61535e16a5cde74766e8e9fa1c281ef91c436d02e97d39"
+      "size": 18991,
+      "sha256": "9431dda7e6f7e838b7d892b0aeed122e156ecd3fdbe1cab3f66bc2a33a48ebdc"
     },
     {
       "path": "js/gcode.js",

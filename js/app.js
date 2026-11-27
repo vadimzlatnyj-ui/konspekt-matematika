@@ -60,7 +60,7 @@
     betweenPages: 'G0 X{startX} Y{startY}\nM0 ; Страница {page} готова. Переверните лист и продолжите',
     footer: 'G0 X{startX} Y{startY}\nM2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
-    spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMathMode: 'digits',
+    spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMathMode: 'digits', font2Sel: '', font2Ratio: 50, jitter: 0,
     originCorner: 'bl', homeCorner: 'tl', graphFrame: false, graphNumber: false, graphTable: true, cfgVer: 2, graphPrefix: 'Рис.', graphStart: 1,
   };
 
@@ -95,9 +95,9 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
 
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
-    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra', 'graphStart'];
+    'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'font2Ratio', 'jitter', 'penUpVal', 'penDownVal', 'penExtra', 'graphStart'];
   const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'graphFrame', 'graphNumber', 'graphTable'];
-  const STR = ['fontMathMode', 'graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+  const STR = ['font2Sel', 'fontMathMode', 'graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };
@@ -126,7 +126,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     for (const k of NUM) { const v = parseFloat($(k).value); if (!isNaN(v)) cfg[k] = v; }
     cfg.feedDraw = Math.max(10, Math.min(10000, cfg.feedDraw));
     for (const k of BOOL) cfg[k] = $(k).checked;
-    for (const k of STR) { if (k === 'fontSel' && !$(k).value) continue; cfg[k] = $(k).value; }
+    for (const k of STR) { if ((k === 'fontSel') && !$(k).value) continue; cfg[k] = $(k).value; }
     if (PEN_METHODS[cfg.penPreset]) {
       const pc = penCommands(cfg);
       cfg.penUp = pc.up; cfg.penDown = pc.down;
@@ -237,6 +237,9 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     readForm(); save();
     localStorage.setItem('plotterText', $('text').value);
     PlotFont.setCustom(fonts.get(cfg.fontSel) || null, cfg.fontMathMode || 'digits');
+    const f2 = cfg.font2Sel === 'builtin' ? 'builtin' : (fonts.get(cfg.font2Sel) || null);
+    PlotFont.setMix(f2 && cfg.font2Sel !== cfg.fontSel ? f2 : null, (+cfg.font2Ratio || 0) / 100, (+cfg.jitter || 0) / 100);
+    PlotFont.beginLayout(7);
     try {
       result = PlotLayout.layoutDocument($('text').value, cfg);
     } catch (e) {
@@ -1181,6 +1184,14 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     }
     sel.value = fonts.has(cfg.fontSel) || !fontsReady ? cfg.fontSel : 'builtin';
     $('fontDel').disabled = sel.value === 'builtin';
+    // второй шрифт вперемешку: те же шрифты + встроенный
+    const s2 = $('font2Sel');
+    s2.innerHTML = '<option value="">— не смешивать —</option><option value="builtin">Встроенный (однолинейный)</option>';
+    for (const [id, f] of fonts) { const o = document.createElement('option'); o.value = id; o.textContent = f.name; s2.appendChild(o); }
+    if (cfg.font2Sel && cfg.font2Sel !== 'builtin' && !fonts.has(cfg.font2Sel) && !fontsReady) {
+      const o = document.createElement('option'); o.value = cfg.font2Sel; o.textContent = '(загружается…)'; s2.appendChild(o);
+    }
+    s2.value = !cfg.font2Sel || cfg.font2Sel === 'builtin' || fonts.has(cfg.font2Sel) || !fontsReady ? (cfg.font2Sel || '') : '';
   }
 
   async function addFont(id, name, buf) {

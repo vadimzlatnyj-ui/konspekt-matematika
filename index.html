@@ -133,6 +133,13 @@
         <label class="filebtn">📂 Загрузить шрифт…<input type="file" id="fontFile" accept=".gfont,.font,.ttf,.otf,.woff,.svg,.jhf,.json,.zip,.gz,.fnt"></label>
         <button id="fontDel" type="button" class="danger" title="Удалить выбранный загруженный шрифт">Удалить</button>
       </div>
+      <div class="row">
+        <label>Второй шрифт вперемешку
+          <select id="font2Sel"><option value="">— не смешивать —</option></select>
+        </label>
+        <label>Доля второго, % <input type="number" id="font2Ratio" min="0" max="100" step="5"></label>
+      </div>
+      <label>Небрежность (буквы чуть разные), % <input type="number" id="jitter" min="0" max="100" step="5"></label>
       <label>Формулы
         <select id="fontMathMode">
           <option value="digits">встроенным шрифтом, а цифры — из выбранного</option>
