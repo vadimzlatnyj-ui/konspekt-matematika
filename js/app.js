@@ -60,7 +60,7 @@
     betweenPages: 'G0 X{startX} Y{startY}\nM0 ; Страница {page} готова. Переверните лист и продолжите',
     footer: 'G0 X{startX} Y{startY}\nM2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
-    spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMath: false,
+    spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMathMode: 'digits',
     originCorner: 'bl', homeCorner: 'tl', graphFrame: false, graphNumber: false, graphTable: true, cfgVer: 2, graphPrefix: 'Рис.', graphStart: 1,
   };
 
@@ -96,8 +96,8 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   const NUM = ['pageW', 'pageH', 'cell', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'firstPage',
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
     'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'penUpVal', 'penDownVal', 'penExtra', 'graphStart'];
-  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'fontMath', 'graphFrame', 'graphNumber', 'graphTable'];
-  const STR = ['graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+  const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'graphFrame', 'graphNumber', 'graphTable'];
+  const STR = ['fontMathMode', 'graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };
@@ -108,6 +108,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       const c = JSON.parse(localStorage.getItem('plotterCfg') || '{}');
       if (!(c.cfgVer >= 2)) { c.graphFrame = false; c.graphNumber = false; c.graphTable = true; }
       c.cfgVer = 2;
+      if (c.fontMath !== undefined && !c.fontMathMode) { c.fontMathMode = c.fontMath ? 'all' : 'digits'; delete c.fontMath; }
       return Object.assign({}, DEFAULTS, c);
     } catch (e) { return Object.assign({}, DEFAULTS); }
   }
@@ -235,7 +236,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   function recompute() {
     readForm(); save();
     localStorage.setItem('plotterText', $('text').value);
-    PlotFont.setCustom(fonts.get(cfg.fontSel) || null, cfg.fontMath);
+    PlotFont.setCustom(fonts.get(cfg.fontSel) || null, cfg.fontMathMode || 'digits');
     try {
       result = PlotLayout.layoutDocument($('text').value, cfg);
     } catch (e) {
@@ -1182,8 +1183,8 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('fontDel').disabled = sel.value === 'builtin';
   }
 
-  function addFont(id, name, buf) {
-    const f = PlotCustomFont.load(name, buf);
+  async function addFont(id, name, buf) {
+    const f = await PlotCustomFont.load(name, buf);
     fonts.set(id, f);
     return f;
   }
@@ -1191,7 +1192,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   async function initFonts() {
     try {
       for (const rec of await fontDB.all()) {
-        try { addFont(rec.id, rec.name, rec.data); } catch (e) { console.warn('шрифт не загрузился', rec.name, e); }
+        try { await addFont(rec.id, rec.name, rec.data); } catch (e) { console.warn('шрифт не загрузился', rec.name, e); }
       }
     } catch (e) { console.warn('хранилище шрифтов недоступно', e); }
     fontsReady = true;
@@ -1206,7 +1207,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
       const buf = await file.arrayBuffer();
       const id = 'f' + Date.now();
       const name = file.name.replace(/\.[^.]+$/, '');
-      const f = addFont(id, name, buf);
+      const f = await addFont(id, name, buf);
       // проверим, что буквы правда есть
       const probe = Array.from('АБВГДЕЖЗИКЛМНОПРСТУФХабвгдежзиклмнопрстуфхэюяABCDEFGHabcdefgh0123456789').filter(c => f.get(c)).length;
       if (!probe) throw new Error('в шрифте не нашлось ни русских, ни латинских букв');

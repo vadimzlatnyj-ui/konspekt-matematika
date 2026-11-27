@@ -195,20 +195,136 @@
     return { kind: 'single', get: ch => glyphs.get(ch) || null, count: glyphs.size };
   }
 
-  /** Загружает шрифт из содержимого файла (ArrayBuffer) */
-  function load(name, buf) {
-    const b = new Uint8Array(buf.slice(0, 4));
-    const tag = String.fromCharCode(...b);
+  // ---------- «какой-нибудь» JSON: ищем буквы с путями или штрихами ----------
+  function parseAnyJSON(o) {
+    const entries = [];
+    const ADV = ['w', 'width', 'adv', 'advance', 'advanceWidth', 'horiz-adv-x', 'horizAdvX', 'ax'];
+    const charOf = (obj, key) => {
+      for (const k of ['unicode', 'char', 'c', 'ch', 'symbol', 'letter', 'name']) if (typeof obj[k] === 'string' && Array.from(obj[k]).length === 1) return obj[k];
+      for (const k of ['code', 'charcode', 'charCode', 'codepoint', 'cp']) if (Number.isInteger(obj[k])) return String.fromCodePoint(obj[k]);
+      if (typeof key === 'string' && Array.from(key).length === 1) return key;
+      if (typeof key === 'string' && /^(U\+|0x)[0-9a-f]+$/i.test(key)) return String.fromCodePoint(parseInt(key.replace(/^(U\+|0x)/i, ''), 16));
+      return null;
+    };
+    const visit = (v, key, depth) => {
+      if (!v || typeof v !== 'object' || depth > 6) return;
+      if (Array.isArray(v)) {
+        if (typeof key === 'string' && Array.from(key).length === 1 && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'string') {
+          entries.push({ ch: key, adv: v[0], strokes: v[1] }); return;
+        }
+        v.forEach((x, i) => visit(x, i, depth + 1)); return;
+      }
+      const ch = charOf(v, key);
+      const d = v.d || v.path || v.svg || v.outline;
+      const st = v.strokes || v.lines || v.paths || v.polylines;
+      if (ch && (typeof d === 'string' || st)) {
+        let adv = null; for (const k of ADV) if (typeof v[k] === 'number') { adv = v[k]; break; }
+        entries.push({ ch, adv, d: typeof d === 'string' ? d : null, strokes: st });
+        return;
+      }
+      for (const [k, x] of Object.entries(v)) visit(x, k, depth + 1);
+    };
+    visit(o, null, 0);
+    if (!entries.length) throw new Error('в JSON не нашлось букв');
+    // в общие ломаные (в единицах файла)
+    const raw = new Map();
+    for (const e of entries) {
+      let polys = [];
+      if (e.d) polys = flattenPath(e.d, 0.5);
+      else if (typeof e.strokes === 'string') polys = e.strokes.split('|').map(s => s.trim().split(/\s+/).filter(Boolean).map(q => q.split(',').map(Number))).filter(q => q.length > 1);
+      else if (Array.isArray(e.strokes)) polys = e.strokes.map(st => Array.isArray(st[0]) ? st.map(q => [+q[0], +q[1]]) : (() => { const o2 = []; for (let i = 0; i + 1 < st.length; i += 2) o2.push([+st[i], +st[i + 1]]); return o2; })()).filter(q => q.length > 1);
+      raw.set(e.ch, { polys, adv: e.adv });
+    }
+    // высота заглавных и направление оси Y: по H / Н / A / 1
+    const ref = ['H', 'Н', 'A', 'А', 'E', '1', 'I'].map(c => raw.get(c)).find(g => g && g.polys.length) || raw.values().next().value;
+    const ys = ref.polys.flat().map(q => q[1]), xs = ref.polys.flat().map(q => q[0]);
+    const yMin = Math.min(...ys), yMax = Math.max(...ys);
+    let anyNeg = false; for (const g of raw.values()) for (const q of g.polys.flat()) if (q[1] < -1e-6) { anyNeg = true; break; }
+    const yDown = !anyNeg;                    // нет отрицательных координат — скорее всего ось Y вниз (как в SVG)
+    const cap = (yMax - yMin) || 1;
+    const scale = CAP / cap;
+    const base = yDown ? yMax : 0;            // базовая линия: низ буквы H (ось вниз) или 0 (ось вверх)
+    const cache = new Map();
+    return {
+      kind: 'single', count: raw.size,
+      get(ch) {
+        if (cache.has(ch)) return cache.get(ch);
+        const r = raw.get(ch);
+        let g = null;
+        if (r) {
+          const px = r.polys.flat().map(q => q[0]);
+          const x0 = px.length ? Math.min(...px) : 0;
+          const adv = r.adv != null ? r.adv : (px.length ? Math.max(...px) - x0 + cap * 0.15 : cap * 0.5);
+          g = makeGlyph(r.polys, adv, scale, yDown, base, r.adv != null ? 0 : x0);
+        }
+        cache.set(ch, g);
+        return g;
+      },
+    };
+  }
+
+  async function gunzip(u8) {
+    const out = await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    return out;
+  }
+
+  /** Первый подходящий файл шрифта из zip-архива */
+  async function fromZip(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    let eocd = -1;
+    for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('повреждённый архив');
+    const n = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const dec = new TextDecoder();
+    const found = [];
+    for (let k = 0; k < n; k++) {
+      const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+      const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+      const lho = dv.getUint32(p + 42, true);
+      const name = dec.decode(u8.subarray(p + 46, p + 46 + nlen));
+      found.push({ name, method, csize, lho });
+      p += 46 + nlen + xlen + clen;
+    }
+    const pick = found.find(f => /\.(ttf|otf|woff|svg|jhf|json|font)$/i.test(f.name) && !/\/$/.test(f.name));
+    if (!pick) throw new Error('в архиве нет файла шрифта (' + found.map(f => f.name).slice(0, 5).join(', ') + ')');
+    const lnlen = dv.getUint16(pick.lho + 26, true), lxlen = dv.getUint16(pick.lho + 28, true);
+    const data = u8.subarray(pick.lho + 30 + lnlen + lxlen, pick.lho + 30 + lnlen + lxlen + pick.csize);
+    if (pick.method === 0) return data.slice().buffer;
+    const out = await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
+    return out;
+  }
+
+  /** Загружает шрифт из содержимого файла (ArrayBuffer). Формат — по содержимому, расширение не важно. */
+  async function load(name, buf, depth = 0) {
+    const b = new Uint8Array(buf.slice(0, 8));
+    const tag = String.fromCharCode(...b.slice(0, 4));
     let font;
-    if (tag === '\x00\x01\x00\x00' || tag === 'OTTO' || tag === 'true' || tag === 'wOFF') font = parseOpenType(buf);
+    if (tag === '\x00\x01\x00\x00' || tag === 'OTTO' || tag === 'true' || tag === 'wOFF' || tag === 'typ1') font = parseOpenType(buf);
     else if (tag === 'wOF2') throw new Error('WOFF2 не поддерживается — сохраните шрифт как TTF или OTF');
+    else if (tag === 'ttcf') throw new Error('это коллекция шрифтов (TTC) — извлеките из неё один TTF');
+    else if (b[0] === 0x1f && b[1] === 0x8b && depth < 2) return load(name, await gunzip(new Uint8Array(buf)), depth + 1);
+    else if (tag.startsWith('PK') && depth < 2) return load(name, await fromZip(buf), depth + 1);
     else {
-      const text = new TextDecoder().decode(buf).replace(/^﻿/, '');
+      let text = new TextDecoder().decode(buf);
+      if (text.includes('�') && !/^[\s{<\d]/.test(text.replace(/^﻿/, ''))) {
+        // не UTF-8 — пробуем однобайтовую кодировку (часто у старых программ)
+        try { text = new TextDecoder('windows-1251').decode(buf); } catch (e) { /* */ }
+      }
+      text = text.replace(/^﻿/, '');
       const t = text.trimStart();
-      if (t[0] === '{') font = parseJSON(text);
-      else if (t[0] === '<') font = parseSVGFont(text);
+      if (t[0] === '{' || t[0] === '[') {
+        const o = JSON.parse(t);
+        try { font = parseJSON(t); } catch (e) { font = null; }
+        if (!font || font.count < 5) font = parseAnyJSON(o);
+      } else if (t[0] === '<') font = parseSVGFont(text);
       else if (/^\s*\d{1,5}\s*\d{1,3}[A-Za-z\[\]\\^_`]/.test(text)) font = parseJHF(text);
-      else throw new Error('неизвестный формат шрифта (поддерживаются .ttf .otf .woff .svg .jhf .json)');
+      else {
+        const head = Array.from(b).map(x => x.toString(16).padStart(2, '0')).join(' ');
+        const preview = text.slice(0, 40).replace(/[\x00-\x1f]/g, '·');
+        throw new Error(`неизвестный формат шрифта. Начало файла: ${head} «${preview}». ` +
+          'Поддерживаются TTF, OTF, WOFF, SVG-шрифты, Hershey (.jhf), JSON и они же в zip/gzip. Пришлите файл — добавлю этот формат.');
+      }
     }
     font.name = name;
     return font;

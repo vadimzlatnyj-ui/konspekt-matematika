@@ -130,10 +130,16 @@
         </select>
       </label>
       <div class="bar">
-        <label class="filebtn">📂 Загрузить шрифт…<input type="file" id="fontFile" accept=".font,.ttf,.otf,.woff,.svg,.jhf,.json"></label>
+        <label class="filebtn">📂 Загрузить шрифт…<input type="file" id="fontFile" accept=".font,.ttf,.otf,.woff,.svg,.jhf,.json,.zip,.gz,.fnt"></label>
         <button id="fontDel" type="button" class="danger" title="Удалить выбранный загруженный шрифт">Удалить</button>
       </div>
-      <label class="chk"><input type="checkbox" id="fontMath"> Писать этим шрифтом и формулы</label>
+      <label>Формулы
+        <select id="fontMathMode">
+          <option value="digits">встроенным шрифтом, а цифры — из выбранного</option>
+          <option value="none">полностью встроенным шрифтом</option>
+          <option value="all">полностью выбранным шрифтом</option>
+        </select>
+      </label>
       <p class="hint" id="fontInfo">Однолинейные шрифты для плоттеров (.jhf Hershey, .svg Hershey Text/EMS) пишутся одной линией.
         Обычные .ttf/.otf/.woff рисуются по контуру букв (двойной линией). Буквы, которых нет в шрифте, берутся из встроенного.</p>
       <div class="row">

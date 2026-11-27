@@ -324,10 +324,12 @@
   /** Возвращает {w, strokes, asc, desc} или null если символа нет */
   // Загруженный пользователем шрифт (см. customfont.js): для текста, а по желанию и для формул
   let custom = null, customMath = false;
-  function setCustom(font, useInMath) { custom = font || null; customMath = !!useInMath; }
+  // mathMode: 'none' — формулы встроенным шрифтом; 'digits' — в формулах цифры из шрифта; 'all' — формулы целиком шрифтом
+  let mathMode = 'digits';
+  function setCustom(font, mode) { custom = font || null; mathMode = mode === true ? 'all' : mode === false ? 'none' : (mode || 'digits'); customMath = mathMode === 'all'; }
 
   function getGlyph(ch, isText) {
-    if (custom && (isText || customMath) && ch !== ' ') {
+    if (custom && ch !== ' ' && (isText || customMath || (mathMode === 'digits' && ch >= '0' && ch <= '9'))) {
       try { const g = custom.get(ch); if (g) return g; } catch (e) { /* нет буквы — берём встроенную */ }
     }
     if (cache.has(ch)) return cache.get(ch);

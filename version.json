@@ -1,13 +1,13 @@
 {
-  "version": "17ef083d9001",
-  "built": 1795803805162,
-  "date": "2026-11-27T18:23:25.162Z",
-  "notes": "Рисунки из Word и свои картинки превращаются в линии",
+  "version": "20b5b25b6138",
+  "built": 1795804187603,
+  "date": "2026-11-27T18:29:47.603Z",
+  "notes": "Шрифты .font: zip/gzip, JSON других программ; в формулах цифры из шрифта",
   "files": [
     {
       "path": "index.html",
-      "size": 27071,
-      "sha256": "6917b585d76701eb649094be46a50d32381262bc6917a5bd0de126f5b511475b"
+      "size": 27365,
+      "sha256": "d48913bc43eb6a5a96949f95a0c7d6b8e2448997fa9d602fec23387e8004e5a6"
     },
     {
       "path": "css/style.css",
@@ -16,18 +16,18 @@
     },
     {
       "path": "js/app.js",
-      "size": 76633,
-      "sha256": "8cea54f124f6ab397e33d119006ac4d403e214440e5d03def7ef9141f6a57471"
+      "size": 76810,
+      "sha256": "00c5225fed11573d1580b56c62e8692745996149a872c5a2112472565efb434a"
     },
     {
       "path": "js/customfont.js",
-      "size": 10721,
-      "sha256": "45c4831a70f0fdccc7b9540c5cab83715a4865f4580dc2b4450ac6c050029fd5"
+      "size": 17912,
+      "sha256": "472aea5614bfce7caf8eb46672af58b3f9e7d6c189640b64484cbc697d579373"
     },
     {
       "path": "js/font.js",
-      "size": 16400,
-      "sha256": "03d477e36dfeb20f645124cef1c9b094c3d267ef0ec62bfa9b90fa6630515a57"
+      "size": 16759,
+      "sha256": "422e3f289e6f29286f61535e16a5cde74766e8e9fa1c281ef91c436d02e97d39"
     },
     {
       "path": "js/gcode.js",
