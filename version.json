@@ -1,18 +1,18 @@
 {
-  "version": "4ae854cf6726",
-  "built": 1795803337312,
-  "date": "2026-11-27T18:15:37.312Z",
-  "notes": "Приближение листа — Ctrl + колёсико",
+  "version": "3a96eb285055",
+  "built": 1795803468226,
+  "date": "2026-11-27T18:17:48.226Z",
+  "notes": "Выбор страницы — прямо над предпросмотром",
   "files": [
     {
       "path": "index.html",
-      "size": 26712,
-      "sha256": "65727070d7d6c1a601dc4140d3d43417acdd3fc575b8258fe9aadf86d2127e51"
+      "size": 26720,
+      "sha256": "7bb2d7f89f44c07dd4458bdd09de6d019431c3ff0b47c1aff27197dbf7fe99fe"
     },
     {
       "path": "css/style.css",
-      "size": 6646,
-      "sha256": "615e6088ee97b12345587ff47ec4b3bfaef2b19a9141d612c92f61ed52059257"
+      "size": 6825,
+      "sha256": "4c8c632572f3f51ec0f018c80e7f07280909864c384914b26247b9703eca00ee"
     },
     {
       "path": "js/app.js",

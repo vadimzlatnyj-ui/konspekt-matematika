@@ -263,17 +263,6 @@
 
   <!-- ===== Предпросмотр ===== -->
   <section id="preview">
-    <div class="bar">
-      <button id="prev" type="button">‹</button>
-      <span id="pageInfo">Страница 1 / 1</span>
-      <button id="next" type="button">›</button>
-      <label class="chk inline"><input type="checkbox" id="showTravel"> холостые ходы</label>
-      <label class="chk inline"><input type="checkbox" id="showLines" checked> строки</label>
-      <select id="view">
-        <option value="page">Лист</option>
-        <option value="bed">Стол станка</option>
-      </select>
-    </div>
     <details id="printPanel" open>
       <summary>Плоттер (USB)</summary>
       <p class="hint" id="serialNote">Подключите плоттер USB-кабелем и нажмите «Подключить». Во время печати на листе видно, где сейчас ручка.
@@ -330,6 +319,17 @@
       <progress id="printProg" max="1000" value="0"></progress>
       <pre id="serialLog"></pre>
     </details>
+    <div class="bar pageBar">
+      <button id="prev" type="button">‹</button>
+      <span id="pageInfo">Страница 1 / 1</span>
+      <button id="next" type="button">›</button>
+      <label class="chk inline"><input type="checkbox" id="showTravel"> холостые ходы</label>
+      <label class="chk inline"><input type="checkbox" id="showLines" checked> строки</label>
+      <select id="view">
+        <option value="page">Лист</option>
+        <option value="bed">Стол станка</option>
+      </select>
+    </div>
     <div id="canvasWrap"><canvas id="canvas"></canvas>
       <div class="zoomBar">
         <button id="zoomOut" type="button" title="Отдалить">−</button>
