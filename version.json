@@ -1,23 +1,23 @@
 {
-  "version": "3cc60d17e68c",
-  "built": 1795806452881,
-  "date": "2026-11-27T19:07:32.881Z",
-  "notes": "Плавная печать: отправка пачками в буфер платы, меньше мелких отрезков",
+  "version": "c2bfaf03144c",
+  "built": 1795807163595,
+  "date": "2026-11-27T19:19:23.595Z",
+  "notes": "Поля на развороте на выбор; окно «переверните лист» с Продолжить/Отменить",
   "files": [
     {
       "path": "index.html",
-      "size": 29012,
-      "sha256": "e842d8fcdad79f43271ea47d8a5931f370a2a8b3a075ce929700a6deaa88aa7f"
+      "size": 30298,
+      "sha256": "f19b054e5b11a5759ea43281e3bc11e2adab2caeadf1e8a2219931db088967f5"
     },
     {
       "path": "css/style.css",
-      "size": 6825,
-      "sha256": "4c8c632572f3f51ec0f018c80e7f07280909864c384914b26247b9703eca00ee"
+      "size": 7441,
+      "sha256": "b61850cb39298fdbbbb5da24fa80d77f73d126e412fd0eff327fe03ba4051d90"
     },
     {
       "path": "js/app.js",
-      "size": 86816,
-      "sha256": "54cc077a68850ee7d3f3410ee8f5658d75284fb21614e8f699c14739f134c69f"
+      "size": 88615,
+      "sha256": "04fa663c671151bbcac170a715957ed39c8146fb3c868eced34f355772edde94"
     },
     {
       "path": "js/customfont.js",
@@ -51,8 +51,8 @@
     },
     {
       "path": "js/layout.js",
-      "size": 16421,
-      "sha256": "43f91e77825d2d422c7c707d89bdbfd93afe16def12b9688d8176a02fd055406"
+      "size": 16814,
+      "sha256": "f8bd0fa2456620f80f97b7c9803e465b877bbc13220e1f1fd3d971ebe7b18acb"
     },
     {
       "path": "js/math.js",

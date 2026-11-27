@@ -106,3 +106,11 @@ details.sub summary { font-weight: 500; font-size: 12px; color: #4b5563; }
 
 .pageBar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; }
 .pageBar #pageInfo { font-weight: 600; min-width: 150px; text-align: center; }
+
+#flipBox { position: absolute; inset: 0; background: rgba(15, 23, 42, .35); display: flex; align-items: center; justify-content: center; z-index: 5; }
+#flipBox[hidden] { display: none; }
+.flipCard { background: #fff; border-radius: 10px; padding: 18px 22px; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,.25); text-align: center; }
+.flipTitle { font-size: 18px; font-weight: 700; color: #1e3a5f; margin-bottom: 6px; }
+.flipText { font-size: 14px; color: #374151; margin-bottom: 14px; }
+.flipBtns { display: flex; gap: 10px; justify-content: center; }
+.flipBtns button { padding: 8px 16px; font-size: 15px; }

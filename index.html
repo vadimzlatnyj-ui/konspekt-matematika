@@ -59,6 +59,15 @@
           </select>
         </label>
       </div>
+      <label>Поля (красная линия) на развороте
+        <select id="spreadMargins">
+          <option value="outer">снаружи — у краёв тетради</option>
+          <option value="inner">внутри — у корешка</option>
+          <option value="right">справа на обеих страницах</option>
+          <option value="left">слева на обеих страницах</option>
+        </select>
+      </label>
+      <p class="hint">Ширина поля с красной линией — «Поле справа», другого края — «Поле слева».</p>
       <p class="hint">Раскрытая тетрадь кладётся на стол целиком. Перегородка — полоса между страницами (корешок, скрепки), где ручка не пишет.
         «X/Y угла» — это левый нижний угол <i>левой</i> страницы. Широкое поле (справа) ставится снаружи у обеих страниц.</p>
       <label class="chk"><input type="checkbox" id="mirrorMargins"> Зеркальные поля на чётных страницах</label>
@@ -354,6 +363,16 @@
       </select>
     </div>
     <div id="canvasWrap"><canvas id="canvas"></canvas>
+      <div id="flipBox" hidden>
+        <div class="flipCard">
+          <div class="flipTitle" id="flipTitle">Страница готова</div>
+          <div class="flipText">Переверните лист (или смените тетрадь) и положите её на то же место. Ручка поднята и стоит дома.</div>
+          <div class="flipBtns">
+            <button id="flipGo" type="button" class="primary">▶ Продолжить</button>
+            <button id="flipCancel" type="button" class="danger">✖ Отменить печать</button>
+          </div>
+        </div>
+      </div>
       <div class="zoomBar">
         <button id="zoomOut" type="button" title="Отдалить">−</button>
         <span id="zoomVal">100%</span>

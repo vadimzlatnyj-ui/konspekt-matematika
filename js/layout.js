@@ -97,7 +97,7 @@
             return !vis;
           };
           if (/^(\\newpage|\\pagebreak|\\clearpage|-{3}\s*page\s*-{3}|={3,}|\[страница\]|\[page\])$/i.test(trimmed)) {
-            cur = null; nl = 1; paras.push({ kind: 'pagebreak' }); return;
+            cur = null; nl = 0; paras.push({ kind: 'pagebreak' }); return;   // nl = 0: перевод строки после \newpage — не пустая строка
           }
           if (!trimmed) { for (const m of line.match(MK) || []) root.PlotFont && root.PlotFont.mark(m); return; }
           const im = /^\[\s*(рисунок|картинка|image|picture)\s*[:：]\s*([\w-]+)\s*(.*)\]$/i.exec(trimmed);
@@ -169,9 +169,12 @@
 
     const marginsFor = idx => {
       if (opt.spread) {
-        // разворот: широкое поле (marginRight) — всегда снаружи: у левой страницы слева, у правой справа
+        // разворот: широкое поле (с красной линией) = «Поле справа», узкое = «Поле слева»;
+        // где широкое — снаружи (у краёв), внутри (у корешка), справа или слева на обеих страницах
         const isLeft = (idx + (opt.spreadStart === 'right' ? 1 : 0)) % 2 === 0;
-        return isLeft ? { left: opt.marginRight, right: opt.marginLeft } : { left: opt.marginLeft, right: opt.marginRight };
+        const wide = opt.marginRight, narrow = opt.marginLeft;
+        const wideOnLeft = { outer: isLeft, inner: !isLeft, right: false, left: true }[opt.spreadMargins || 'outer'];
+        return wideOnLeft ? { left: wide, right: narrow } : { left: narrow, right: wide };
       }
       const even = (idx + (opt.firstPage || 1)) % 2 === 0;
       if (opt.mirrorMargins && even) return { left: opt.marginRight, right: opt.marginLeft };

@@ -60,7 +60,7 @@
     betweenPages: 'G0 X{startX} Y{startY}\nM0 ; Страница {page} готова. Переверните лист и продолжите',
     footer: 'M2',
     decimals: 2, joinDistance: 0.1, order: 'lines', startX: 0, startY: 0, startRow: 1,
-    spread: false, spineGap: 12, spreadStart: 'left', fontSel: 'builtin', fontMathMode: 'digits', font2Sel: '', font2Ratio: 50, jitter: 0,
+    spread: false, spineGap: 12, spreadStart: 'left', spreadMargins: 'outer', fontSel: 'builtin', fontMathMode: 'digits', font2Sel: '', font2Ratio: 50, jitter: 0,
     originCorner: 'bl', homeCorner: 'nb', graphFrame: false, graphNumber: false, graphTable: true, cfgVer: 3, graphPrefix: 'Рис.', graphStart: 1,
   };
 
@@ -97,7 +97,7 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     'offsetX', 'offsetY', 'rotation', 'bedW', 'bedH', 'capHeight', 'linePitch', 'letterSpacing', 'wordSpacing',
     'slant', 'indent', 'fracScale', 'scriptScale', 'feedDraw', 'feedTravel', 'penDelay', 'decimals', 'joinDistance', 'startX', 'startY', 'startRow', 'spineGap', 'font2Ratio', 'jitter', 'penUpVal', 'penDownVal', 'penExtra', 'graphStart'];
   const BOOL = ['mirrorMargins', 'snapToGrid', 'mirrorX', 'mirrorY', 'centerDisplay', 'travelG0', 'spread', 'graphFrame', 'graphNumber', 'graphTable'];
-  const STR = ['font2Sel', 'fontMathMode', 'graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
+  const STR = ['spreadMargins', 'font2Sel', 'fontMathMode', 'graphPrefix', 'originCorner', 'homeCorner', 'fontSel', 'fw', 'baud', 'spreadStart', 'order', 'preset', 'penPreset', 'penUp', 'penDown', 'header', 'betweenPages', 'footer'];
 
   let cfg = load();
   let result = { pages: [], warnings: [] };
@@ -925,6 +925,19 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   let sender = null, drawQueued = false;
   const queueDraw = () => { if (drawQueued) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; if (path) draw(); }); };
 
+  /** Короткий сигнал: страница готова */
+  function beep() {
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.25].forEach(t => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.value = 880; g.gain.setValueAtTime(0.15, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.2);
+        o.connect(g); g.connect(ac.destination); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.21);
+      });
+      setTimeout(() => ac.close(), 800);
+    } catch (e) { /* без звука */ }
+  }
+
   function logLine(text, kind) {
     const el = $('serialLog');
     const div = document.createElement('div');
@@ -960,6 +973,13 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('fw').disabled = $('baud').disabled = conn;
     live.active = busy || (live.active && name === 'done');
     if (name === 'paused' || name === 'waitPage') live.pen = false;
+    // окно «переверните лист»: показываем, пока плоттер ждёт смены страницы
+    $('flipBox').hidden = name !== 'waitPage';
+    if (name === 'waitPage') {
+      const done = live.page + 1, total = sheets.length;
+      $('flipTitle').textContent = cfg.spread ? `Разворот ${done} из ${total} готов` : `Страница ${done + (cfg.firstPage - 1)} готова (${done} из ${total})`;
+      beep();
+    }
     if (name === 'waitPage') logLine(`${cfg.spread ? 'Разворот ' + (live.page + 1) : 'Страница ' + (live.page + cfg.firstPage)} готов${cfg.spread ? '' : 'а'}. Переверните/смените лист, положите тетрадь на то же место и нажмите «Продолжить».`, 'info');
     queueDraw();
   }
@@ -1250,6 +1270,15 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
     $('pauseBtn').onclick = () => sender.pause(lns(cfg.penUp), live.pen);
     $('resumeBtn').onclick = () => sender.resume(lns(cfg.penDown));
     $('stopBtn').onclick = () => sender.stop(afterStop());
+    $('flipGo').onclick = () => { $('flipBox').hidden = true; sender.resume(cfg.penDown.split('\n').map(l => l.replace(/;.*/, '').trim()).filter(Boolean)); };
+    $('flipCancel').onclick = () => {
+      if (!confirm('Отменить печать оставшихся страниц?')) return;
+      $('flipBox').hidden = true;
+      const home = cfg.penUp.split('\n').map(x => x.replace(/;.*/, '').trim()).filter(Boolean).concat(['G90', `G0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`]);
+      sender.finishLines = home;
+      sender.endEarly();
+      logLine('Печать остальных страниц отменена.', 'info');
+    };
     $('finishBtn').onclick = () => {
       const home = cfg.penUp.split('\n').map(x => x.replace(/;.*/, '').trim()).filter(Boolean).concat(['G90', `G0 X${+cfg.startX || 0} Y${+cfg.startY || 0}`]);
       sender.finishLine(home);
