@@ -489,7 +489,16 @@ $$\int_0^2 x^2\,dx = \frac{x^3}{3}\Big|_0^2 = \frac{8}{3}$$
   function initZoom() {
     const c = $('canvas');
     c.addEventListener('wheel', e => {
-      e.preventDefault();
+      if (!e.ctrlKey && !e.metaKey) {
+        // без Ctrl колёсико не приближает: если лист приближен — листаем его (Shift — вбок)
+        if (zoom.z <= 1.0001) return;
+        e.preventDefault();
+        const dx = e.shiftKey ? e.deltaY : e.deltaX, dy = e.shiftKey ? 0 : e.deltaY;
+        zoom.px -= dx; zoom.py -= dy;
+        draw();
+        return;
+      }
+      e.preventDefault(); // Ctrl+колёсико — приближаем лист, а не всё окно
       const r = c.getBoundingClientRect();
       // если холст ещё не во всё окно — пересчитаем точку в координатах будущего холста
       const wrapR = $('canvasWrap').getBoundingClientRect();
