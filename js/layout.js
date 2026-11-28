@@ -154,6 +154,43 @@
    *        capHeight, linePitch, cell, snapToGrid, letterSpacing, wordSpacing, indent,
    *        slant, fracScale, scriptScale, centerDisplay, firstPage }
    */
+  /**
+   * Линии «от руки» для графиков: каждая линия слегка плывёт плавной волной и чуть сдвигается целиком.
+   * j — небрежность 0…1, seed — номер графика (одинаковый при каждой вёрстке → предпросмотр = печать).
+   * Точки-метки [NaN, NaN] (печать выделенного) сохраняются в конце линии.
+   */
+  function handDrawn(strokes, j, seed) {
+    if (!j) return strokes;
+    const rnd = (a, b) => {
+      let t = (Math.imul(seed + 1, 0x9E3779B1) ^ Math.imul(a + 3, 0x85EBCA77) ^ Math.imul(b + 11, 0xC2B2AE3D)) >>> 0;
+      t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    return strokes.map((st, si) => {
+      const tag = st.filter(q => q[0] !== q[0]);
+      const pts = st.filter(q => q[0] === q[0]);
+      if (pts.length < 2) return st;
+      // мелкие шаги (≤ 1,5 мм), чтобы прямые оси тоже могли изгибаться
+      const rs = [pts[0]];
+      for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+        const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 1.5));
+        for (let k = 1; k <= n; k++) rs.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]);
+      }
+      const amp = 0.35 * j;                                   // до 0,35 мм волны
+      const f1 = 0.15 + rnd(si, 1) * 0.25, f2 = 0.15 + rnd(si, 2) * 0.25;
+      const p1 = rnd(si, 3) * 6.283, p2 = rnd(si, 4) * 6.283, p3 = rnd(si, 5) * 6.283;
+      const dx = (rnd(si, 6) - 0.5) * 0.5 * j, dy = (rnd(si, 7) - 0.5) * 0.5 * j;   // сдвиг всей линии до ±0,25 мм
+      let s = 0;
+      const out = rs.map((q, i) => {
+        if (i) s += Math.hypot(q[0] - rs[i - 1][0], q[1] - rs[i - 1][1]);
+        return [q[0] + dx + amp * Math.sin(s * f1 + p1) + amp * 0.4 * Math.sin(s * f2 * 2.7 + p3),
+                q[1] + dy + amp * Math.sin(s * f2 + p2)];
+      });
+      return tag.length ? out.concat(tag) : out;
+    });
+  }
+
   function layoutDocument(text, opt) {
     const s = opt.capHeight / 9;          // мм на единицу шрифта
     const slant = Math.tan((opt.slant || 0) * Math.PI / 180);
@@ -166,6 +203,7 @@
     let prevDesc = 0;     // нижний вынос предыдущей строки (мм)
     let lineOnPage = 0;
     let graphNo = 0;      // сколько графиков уже пронумеровано
+    let graphSeed = 0;    // номер графика для «небрежности»
 
     const marginsFor = idx => {
       // поле с красной линией — большее из двух чисел «Поле слева» / «Поле справа», другое — у другого края
@@ -274,6 +312,9 @@
         if (r.usedNumber) graphNo++;
         warnings.push(...r.warnings);
         const g = r.box;
+        // графики — тоже «от руки», если включена небрежность
+        const jit = root.PlotFont && root.PlotFont.getJitter ? root.PlotFont.getJitter() : 0;
+        if (jit) g.strokes = handDrawn(g.strokes, jit, 101 + (graphSeed++));
         const y = placeLine(g.asc + 1, g.desc);
         let x = page.margins.left + (g.align === 'left' ? 0 : Math.max(0, (avail - g.w) / 2));
         if (opt.cell) {

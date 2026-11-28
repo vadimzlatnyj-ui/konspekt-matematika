@@ -414,5 +414,5 @@
     return { w: 4, strokes: [[[0, 0], [4, 0], [4, 6], [0, 6], [0, 0]]], asc: 6, desc: 0 };
   }
 
-  root.PlotFont = { getGlyph, setCustom, setMix, beginLayout, beginSelection, mark, hiddenNow, getVisible, setVisible, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
+  root.PlotFont = { getJitter: () => jitter, getGlyph, setCustom, setMix, beginLayout, beginSelection, mark, hiddenNow, getVisible, setVisible, unknownGlyph, hasGlyph: ch => !!resolve(ch), CAP: 9, XH: 6, AXIS: 4, chars: () => Object.keys(G) };
 })(typeof window !== 'undefined' ? window : globalThis);

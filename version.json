@@ -1,8 +1,8 @@
 {
-  "version": "89fe79fd84b1",
-  "built": 1795808071542,
-  "date": "2026-11-27T19:34:31.542Z",
-  "notes": "Показ границ текста поднятой ручкой с остановками в углах",
+  "version": "71c23e1cbf50",
+  "built": 1795841448836,
+  "date": "2026-11-28T04:50:48.836Z",
+  "notes": "Графики тоже «от руки» при небрежности",
   "files": [
     {
       "path": "index.html",
@@ -26,8 +26,8 @@
     },
     {
       "path": "js/font.js",
-      "size": 20910,
-      "sha256": "30b44c7c3530e18495136058d462ce2290c8dfe36fd9b16c3f502c4225e97347"
+      "size": 20935,
+      "sha256": "24d63344f0a3974211b7462e9cdf52ddfd5d523868f0bfbe8099e4f24df147bf"
     },
     {
       "path": "js/gcode.js",
@@ -51,8 +51,8 @@
     },
     {
       "path": "js/layout.js",
-      "size": 17215,
-      "sha256": "04a4f9fc0109ab0b51f62e421c9c8f06ffca74d1c4dacaf89aaa57d5193e20f3"
+      "size": 19790,
+      "sha256": "24f2dbddda0f04e631e5cffc2e5a40bd58656b2fa230be0366879dbe82ae4712"
     },
     {
       "path": "js/math.js",
